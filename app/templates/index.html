@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Auto Checker · Комнаты{% endblock %}
+
+{% block content %}
+<section>
+  <h2>Создать комнату проверки</h2>
+  <form method="post">
+    <div class="grid">
+      <label>
+        Название комнаты
+        <input type="text" name="name" required placeholder="Например, Группа ИИ-101">
+      </label>
+      <label>
+        Описание (необязательно)
+        <input type="text" name="description" placeholder="Семинар 3, проверка эссе">
+      </label>
+    </div>
+    <button type="submit">Создать комнату</button>
+  </form>
+</section>
+
+<section>
+  <h2>Доступные комнаты</h2>
+  {% if rooms %}
+    <ul>
+      {% for room in rooms %}
+        <li>
+          <a href="{{ url_for('main.room_detail', room_id=room.id) }}">{{ room.name }}</a>
+          <small>Создана {{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+          {% if room.description %}
+            <p>{{ room.description }}</p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Комнаты пока не созданы. Заполните форму выше, чтобы начать.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h3>Глобальные промпты по умолчанию</h3>
+  <article>
+    <header>Промпт проверки</header>
+    <pre>{{ default_check_prompt }}</pre>
+  </article>
+  <article>
+    <header>Промпт анализа заданий</header>
+    <pre>{{ default_task_prompt }}</pre>
+  </article>
+</section>
+{% endblock %}

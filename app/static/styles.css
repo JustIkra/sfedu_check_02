@@ -1,0 +1,48 @@
+body {
+  background: #f5f7fb;
+}
+
+.header {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  margin-bottom: 0.25rem;
+}
+
+.header .tagline {
+  color: #6b6b6b;
+}
+
+.messages article {
+  margin-bottom: 0.5rem;
+}
+
+.messages .error {
+  background: #ffe5e5;
+  border-left: 4px solid #d93025;
+}
+
+.messages .success {
+  background: #e6f4ea;
+  border-left: 4px solid #0f9d58;
+}
+
+.messages .info {
+  background: #e8f0fe;
+  border-left: 4px solid #1a73e8;
+}
+
+.inline-form {
+  display: inline-block;
+  margin-top: 0.5rem;
+}
+
+.inline-form button {
+  margin-top: 0;
+}
+
+pre {
+  white-space: pre-wrap;
+}
