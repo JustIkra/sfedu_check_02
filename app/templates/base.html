@@ -12,11 +12,10 @@
       <header class="header card">
         <div>
           <h1><a href="{{ url_for('main.index') }}">Auto Checker</a></h1>
-          <p class="tagline">Проверка, которая звучит по-человечески</p>
+          <p class="tagline">Сервис экспертной проверки образовательных материалов</p>
         </div>
         <nav>
           <a href="{{ url_for('main.index') }}">Комнаты</a>
-          <a href="https://github.com" target="_blank" rel="noreferrer">Помощь</a>
         </nav>
       </header>
 
@@ -38,5 +37,6 @@
         <p>Auto Checker · {{ config.get('PROJECT_TAGLINE', 'поддержка наставников и студентов') }}</p>
       </footer>
     </div>
+    <script src="{{ url_for('static', filename='progress.js') }}" defer></script>
   </body>
 </html>
