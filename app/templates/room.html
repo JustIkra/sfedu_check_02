@@ -9,22 +9,22 @@
     {% if room.description %}
       <p>{{ room.description }}</p>
     {% else %}
-      <p class="muted">Добавьте описание, чтобы подсказать студентам контекст задания.</p>
+      <p class="muted">Укажите краткое описание, чтобы зафиксировать контекст задания.</p>
     {% endif %}
   </div>
   <form method="post" class="inline-form">
     <input type="hidden" name="action" value="reset_prompt">
-    <button type="submit" class="ghost">Сбросить промпт к шаблону</button>
+    <button type="submit" class="ghost">Восстановить шаблон промпта</button>
   </form>
 </section>
 
 <section class="card">
-  <h3>Голос вашей комнаты</h3>
-  <p class="muted">Этот текст будет автоматически добавлен к инструкциям авто-проверки.</p>
+  <h3>Параметры коммуникации</h3>
+  <p class="muted">Указанный текст включается в инструкции при запуске автоматической проверки.</p>
   <form method="post" class="prompt-form">
     <input type="hidden" name="action" value="update_prompt">
     <label>
-      Человечный промпт
+      Текст промпта
       <textarea name="prompt" rows="7" required>{{ room.prompt }}</textarea>
     </label>
     <button type="submit">Сохранить промпт</button>
@@ -56,7 +56,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="muted">Пока нет загруженных архивов.</p>
+      <p class="muted">Загрузите архив, чтобы подготовить данные к проверке.</p>
     {% endif %}
   </article>
 
@@ -83,16 +83,19 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="muted">Загрузите файл с критериями, чтобы уточнить оценивание.</p>
+      <p class="muted">Добавьте шаблон, чтобы использовать единые критерии оценивания.</p>
     {% endif %}
   </article>
 </section>
 
 <section class="card">
-  <h3>Автопроверка</h3>
-  <p class="muted">Выберите архив с заданиями и получите Excel-отчёт с результатами проверки.</p>
-  <form method="post" class="auto-checker-form">
-    <input type="hidden" name="action" value="run_auto_checker">
+  <h3>Автоматизированная проверка</h3>
+  <p class="muted">Выберите архив с заданиями и сформируйте Excel-отчёт по итогам анализа.</p>
+  <form
+    method="post"
+    class="auto-checker-form"
+    action="{{ url_for('main.start_auto_check', room_id=room.id) }}"
+  >
     <label>
       Архив для проверки
       <select name="dataset" {% if not available_archives %}disabled{% endif %}>
@@ -103,8 +106,26 @@
     </label>
     <button type="submit" {% if not available_archives %}disabled{% endif %}>Запустить проверку</button>
   </form>
+  <div
+    id="auto-check-progress"
+    class="progress-panel"
+    hidden
+    data-status-template="{{ url_for('main.auto_check_status', room_id=room.id, job_id='__JOB__') }}"
+    data-download-template="{{ url_for('main.auto_check_download', room_id=room.id, job_id='__JOB__') }}"
+    data-active-job="{{ latest_job_id or '' }}"
+  >
+    <div class="progress-header">
+      <span class="progress-stage">Ожидание запуска</span>
+      <span class="progress-count"></span>
+    </div>
+    <div class="progress-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-bar-fill"></div>
+    </div>
+    <p class="progress-message muted">Панель прогресса появится при запуске проверки.</p>
+    <a class="button download-link" hidden>Скачать отчёт</a>
+  </div>
   {% if not available_archives %}
-    <p class="muted">Сначала загрузите архив с заданиями.</p>
+    <p class="muted">Для запуска проверки требуется предварительно загрузить архив с заданиями.</p>
   {% endif %}
 </section>
 {% endblock %}
