@@ -8,7 +8,7 @@ db = SQLAlchemy()
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    app.config.setdefault("SECRET_KEY", os.environ.get("SECRET_KEY", "dev-secret-key"))
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 
     instance_path = app.instance_path
     os.makedirs(instance_path, exist_ok=True)
@@ -20,12 +20,12 @@ def create_app() -> Flask:
         database_file = os.path.join(instance_path, "auto_checker.db")
         database_uri = f"sqlite:///{database_file}"
 
-    app.config.setdefault("SQLALCHEMY_DATABASE_URI", database_uri)
-    app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     data_storage = os.environ.get("DATA_STORAGE") or os.path.join(instance_path, "data")
     os.makedirs(data_storage, exist_ok=True)
-    app.config.setdefault("DATA_STORAGE", data_storage)
+    app.config["DATA_STORAGE"] = data_storage
 
     db.init_app(app)
 
