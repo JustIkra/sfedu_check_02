@@ -113,9 +113,14 @@ class GeminiClient:
         if not proxies:
             return None
 
+        client_args = {
+            "proxies": proxies,
+            "http2": False,
+        }
+
         return types.HttpOptions(
-            client_args={"proxies": proxies},
-            async_client_args={"proxies": proxies},
+            client_args=client_args,
+            async_client_args=client_args,
         )
         
     async def _wait_for_rate_limit(self):
