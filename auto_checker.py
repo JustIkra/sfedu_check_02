@@ -28,6 +28,7 @@ from bs4 import BeautifulSoup
 from colorama import init
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from tqdm import tqdm
+from urllib.parse import urlparse
 
 # Импорт Gemini API
 from google import genai
@@ -70,14 +71,57 @@ REQUEST_TIMEOUT = 120  # Таймаут запроса (секунды)
 
 class GeminiClient:
     """Клиент для работы с Gemini API с автоматическими задержками и ротацией ключей."""
-    
+
     def __init__(self, api_key: str = None):
         self.api_keys = API_KEYS.copy()
         self.current_key_index = 0
         self.api_key = api_key or self.api_keys[self.current_key_index]
-        self.client = genai.Client(api_key=self.api_key)
+        self._http_options = self._build_http_options()
+        self.client = genai.Client(api_key=self.api_key, http_options=self._http_options)
         self.last_request_time = 0
         self.key_usage_count = {key: 0 for key in self.api_keys}
+
+    @staticmethod
+    def _build_http_options():
+        """Собирает настройки HTTP с учётом прокси из окружения."""
+
+        proxies = {}
+
+        raw_proxy = (
+            os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or os.environ.get("HTTP_PROXY")
+            or os.environ.get("http_proxy")
+        )
+
+        if not raw_proxy:
+            host = os.environ.get("PROXY_HOST")
+            port = os.environ.get("PROXY_PORT")
+            if host and port:
+                user = os.environ.get("PROXY_USER")
+                password = os.environ.get("PROXY_PASS")
+                credentials = f"{user}:{password}@" if user and password else ""
+                raw_proxy = f"http://{credentials}{host}:{port}"
+
+        if raw_proxy:
+            parsed = urlparse(raw_proxy)
+            if not parsed.scheme:
+                raw_proxy = f"http://{raw_proxy}"
+            proxies = {"http": raw_proxy, "https": raw_proxy}
+            logger.info("Используется прокси для Gemini API: %s", raw_proxy)
+
+        if not proxies:
+            return None
+
+        client_args = {
+            "proxies": proxies,
+            "http2": False,
+        }
+
+        return types.HttpOptions(
+            client_args=client_args,
+            async_client_args=client_args,
+        )
         
     async def _wait_for_rate_limit(self):
         """Ожидание для соблюдения лимитов API."""
@@ -95,7 +139,7 @@ class GeminiClient:
         """Переключение на следующий API ключ."""
         self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
         self.api_key = self.api_keys[self.current_key_index]
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client(api_key=self.api_key, http_options=self._http_options)
         logger.info(f"Переключение на API ключ {self.current_key_index + 1}/{len(self.api_keys)}")
     
     async def _handle_quota_error(self, error_msg: str, attempt: int) -> int:
@@ -154,18 +198,34 @@ class GeminiClient:
             )
             
             # Собираем полный ответ
-            full_response = ""
-            for chunk in self.client.models.generate_content_stream(
+            response = self.client.models.generate_content(
                 model=model,
                 contents=contents,
                 config=generate_content_config,
-            ):
-                if hasattr(chunk, 'text') and chunk.text:
-                    full_response += chunk.text
-            
+            )
+
+            # Собираем текст ответа
+            full_response = getattr(response, "text", "") or ""
+            if not full_response and getattr(response, "candidates", None):
+                parts: list[str] = []
+                for candidate in response.candidates:
+                    content = getattr(candidate, "content", None)
+                    if not content:
+                        continue
+                    for part in getattr(content, "parts", []):
+                        text_part = getattr(part, "text", None)
+                        if text_part:
+                            parts.append(text_part)
+                full_response = "".join(parts)
+
             # Увеличиваем счетчик использования ключа
             self.key_usage_count[self.api_key] += 1
-            logger.debug(f"Получен ответ от модели {model} (ключ {self.current_key_index + 1}, использований: {self.key_usage_count[self.api_key]})")
+            logger.debug(
+                "Получен ответ от модели %s (ключ %s, использований: %s)",
+                model,
+                self.current_key_index + 1,
+                self.key_usage_count[self.api_key],
+            )
             return full_response.strip()
             
         except Exception as e:
@@ -413,7 +473,13 @@ async def check_ai_generation(client: GeminiClient, text: str, models: list = No
     return None
 
 
-async def get_binary_evaluation(client: GeminiClient, text: str, template_text: str, models: list = None) -> dict | None:
+async def get_binary_evaluation(
+    client: GeminiClient,
+    text: str,
+    template_text: str,
+    models: list = None,
+    room_prompt: str = "",
+) -> dict | None:
     """
     Запрашивает бинарную оценку у модели.
     """
@@ -423,7 +489,7 @@ async def get_binary_evaluation(client: GeminiClient, text: str, template_text: 
     logger.info("Запрос бинарной оценки у модели...")
 
     # Промпт для бинарной оценки
-    prompt = f"""
+    base_prompt = f"""
 Ты - строгий эксперт по оценке студенческих работ. Твоя задача - оценить работу студента по критериям из шаблона.
 
 КРИТЕРИИ ОЦЕНКИ ИЗ ШАБЛОНА:
@@ -469,6 +535,12 @@ async def get_binary_evaluation(client: GeminiClient, text: str, template_text: 
 Отвечай на русском языке.
 """
 
+    extra_instructions = room_prompt.strip()
+    if extra_instructions:
+        prompt = f"Дополнительные пожелания к проверке:\n{extra_instructions}\n\n{base_prompt}"
+    else:
+        prompt = base_prompt
+
     # Пытаемся получить валидный ответ
     response = await answer(client, text=text, prompt=prompt, models=models)
     if response:
@@ -486,8 +558,12 @@ async def get_binary_evaluation(client: GeminiClient, text: str, template_text: 
 
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(3),
        retry=retry_if_exception_type(Exception))
-async def process_submission(json_obj: dict, template_text: str,
-                             client: GeminiClient) -> dict | None:
+async def process_submission(
+    json_obj: dict,
+    template_text: str,
+    client: GeminiClient,
+    room_prompt: str = "",
+) -> dict | None:
     """
     Обрабатывает одну подачу: извлекает текст из файлов,
     отправляет его модели для оценки и сохраняет результаты.
@@ -529,7 +605,12 @@ async def process_submission(json_obj: dict, template_text: str,
         logger.info(f"Извлечен текст из {file_path} ({len(student_text)} символов)")
         
         # Получение оценки от AI
-        evaluation = await get_binary_evaluation(client, student_text, template_text)
+        evaluation = await get_binary_evaluation(
+            client,
+            student_text,
+            template_text,
+            room_prompt=room_prompt,
+        )
         
         if not evaluation:
             logger.error(f"Не удалось получить оценку для {user_dir}")
@@ -622,7 +703,12 @@ async def find_all_submissions(root_dir: str) -> list:
 
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(3),
        retry=retry_if_exception_type(Exception))
-def process_all_submissions(json_user_files: List[dict], template_text: str, client: GeminiClient):
+def process_all_submissions(
+    json_user_files: List[dict],
+    template_text: str,
+    client: GeminiClient,
+    room_prompt: str = "",
+):
     """
     Обрабатывает все подачи одновременно с ограничением на количество одновременно выполняемых задач.
     """
@@ -631,14 +717,16 @@ def process_all_submissions(json_user_files: List[dict], template_text: str, cli
     results_lock = threading.Lock()
     progress_bar = tqdm(total=len(json_user_files), desc="Обработка подач")
 
-    def worker(submission, template_text, client):
+    def worker(submission, template_text, client, room_prompt):
         nonlocal results
         semaphore.acquire()
         try:
             # Создаём новый цикл событий для каждого потока
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(process_submission(submission, template_text, client))
+            result = loop.run_until_complete(
+                process_submission(submission, template_text, client, room_prompt),
+            )
             loop.close()
             with results_lock:
                 results.append(result)
@@ -653,7 +741,7 @@ def process_all_submissions(json_user_files: List[dict], template_text: str, cli
     threads = []
 
     for submission in json_user_files:
-        thread = Thread(target=worker, args=(submission, template_text, client))
+        thread = Thread(target=worker, args=(submission, template_text, client, room_prompt))
         thread.start()
         threads.append(thread)
 
@@ -776,7 +864,7 @@ async def generate_final_summary(root_dir: str):
     except Exception as e:
         logger.error(f"Не удалось отформатировать Excel файл: {e}")
     
-    return df
+    return df, summary_path
 
 
 async def check_processed_students(root_dir: str, json_user_files: list) -> tuple:
@@ -793,6 +881,63 @@ async def check_processed_students(root_dir: str, json_user_files: list) -> tupl
             processed_count += 1
     
     return processed_count, 0  # Второй параметр для совместимости
+
+
+async def run_auto_checker_async(
+    root_dir: str,
+    template_path: str,
+    room_prompt: str = "",
+) -> tuple[pd.DataFrame | None, str | None]:
+    """Запускает проверку и возвращает DataFrame и путь к ведомости."""
+
+    logger.info("🚀 Запуск проверки для директории %s", root_dir)
+
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Файл шаблона не найден: {template_path}")
+
+    try:
+        template_text = await extract_text_from_word(template_path)
+        if not template_text.strip():
+            template_text = "Критерии оценки не определены. Оцените работу по общим требованиям."
+            logger.warning("Шаблон пустой, используем общие требования.")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Не удалось загрузить шаблон: %s", exc)
+        template_text = "Критерии оценки не определены. Оцените работу по общим требованиям."
+
+    json_user_files = await find_all_submissions(root_dir)
+    if not json_user_files:
+        logger.warning("Не найдены подачи для обработки в %s", root_dir)
+        return None, None
+
+    processed_count, _ = await check_processed_students(root_dir, json_user_files)
+    remaining_count = len(json_user_files) - processed_count
+
+    logger.info(
+        "Всего работ: %s, обработано ранее: %s, осталось: %s",
+        len(json_user_files),
+        processed_count,
+        remaining_count,
+    )
+
+    client = GeminiClient()
+    process_all_submissions(json_user_files, template_text, client, room_prompt=room_prompt)
+
+    df, summary_path = await generate_final_summary(root_dir)
+    logger.info("Итоговая ведомость сохранена: %s", summary_path)
+    return df, summary_path
+
+
+def run_auto_checker(
+    root_dir: str,
+    template_path: str,
+    room_prompt: str = "",
+) -> str | None:
+    """Синхронный фасад для запуска проверки из веб-приложения."""
+
+    _df, summary_path = asyncio.run(
+        run_auto_checker_async(root_dir, template_path, room_prompt=room_prompt),
+    )
+    return summary_path
 
 
 async def main():
@@ -819,50 +964,11 @@ async def main():
         print("💡 Убедитесь, что папка с работами студентов существует")
         return
     
-    # Чтение шаблона (упрощенная версия)
-    try:
-        # Для Word файлов используем простое извлечение текста
-        template_text = await extract_text_from_word(template_path)
-        if not template_text.strip():
-            template_text = "Критерии оценки не определены. Оцените работу по общим требованиям."
-        logger.info("Шаблон загружен")
-    except Exception as e:
-        logger.error(f"Не удалось загрузить шаблон: {e}")
-        template_text = "Критерии оценки не определены. Оцените работу по общим требованиям."
-    
-    # Поиск всех подач
-    json_user_files = await find_all_submissions(root_dir)
-    
-    if not json_user_files:
-        logger.warning("Не найдены подачи для обработки.")
-        return
-    
-    # Проверка уже обработанных студентов
-    processed_count, _ = await check_processed_students(root_dir, json_user_files)
-    remaining_count = len(json_user_files) - processed_count
-    
-    logger.info(f"📊 Статистика обработки:")
-    logger.info(f"   Всего студентов: {len(json_user_files)}")
-    logger.info(f"   ✅ Уже обработано: {processed_count}")
-    logger.info(f"   🔄 Осталось обработать: {remaining_count}")
-    logger.info(f"   🔑 Доступно ключей: {len(API_KEYS)}")
-    
-    if remaining_count == 0:
-        logger.info("🎉 Все студенты уже обработаны! Формируем итоговую ведомость...")
-        await generate_final_summary(root_dir)
-        return
-    
-    # Инициализация GeminiClient
-    client = GeminiClient()
-    
-    # Обработка всех студентов
-    logger.info("🚀 Начинаем обработку с ротацией ключей...")
-    process_all_submissions(json_user_files, template_text, client)
-    
-    # Формирование итоговой ведомости
-    await generate_final_summary(root_dir)
-    
-    logger.info("✅ Обработка завершена!")
+    df, summary_path = await run_auto_checker_async(root_dir, template_path)
+    if df is None or summary_path is None:
+        logger.info("Процесс завершён без формирования ведомости.")
+    else:
+        logger.info("✅ Обработка завершена! Отчёт: %s", summary_path)
 
 
 if __name__ == "__main__":
