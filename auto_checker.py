@@ -101,14 +101,18 @@ class GeminiClient:
                 user = os.environ.get("PROXY_USER")
                 password = os.environ.get("PROXY_PASS")
                 credentials = f"{user}:{password}@" if user and password else ""
-                raw_proxy = f"http://{credentials}{host}:{port}"
+                raw_proxy = f"socks5h://{credentials}{host}:{port}"
 
         if raw_proxy:
             parsed = urlparse(raw_proxy)
-            if not parsed.scheme:
-                raw_proxy = f"http://{raw_proxy}"
+            scheme = parsed.scheme.lower()
+            if not scheme:
+                raw_proxy = f"socks5h://{raw_proxy}"
+            elif scheme in {"http", "https"}:
+                raw_proxy = raw_proxy.replace(f"{parsed.scheme}://", "socks5h://", 1)
+
             proxies = {"http": raw_proxy, "https": raw_proxy}
-            logger.info("Используется прокси для Gemini API: %s", raw_proxy)
+            logger.info("Используется SOCKS5 прокси для Gemini API: %s", raw_proxy)
 
         if not proxies:
             return None
