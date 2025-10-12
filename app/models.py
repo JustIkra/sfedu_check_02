@@ -18,3 +18,16 @@ class Room(db.Model):
 
     def __repr__(self) -> str:
         return f"<Room {self.id} {self.name}>"
+
+    @property
+    def prompt(self) -> str:
+        """Единый человеко-понятный промпт для комнаты."""
+
+        return self.check_prompt
+
+    @prompt.setter
+    def prompt(self, value: str) -> None:
+        """Сохраняет новое значение во всех связанных полях."""
+
+        self.check_prompt = value
+        self.task_prompt = value

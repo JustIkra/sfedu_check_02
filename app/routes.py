@@ -1,5 +1,7 @@
 import os
+import shutil
 import uuid
+import zipfile
 from pathlib import Path
 
 from flask import (
@@ -14,7 +16,9 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
-from .default_prompts import DEFAULT_CHECK_PROMPT, DEFAULT_TASK_PROMPT
+from auto_checker import run_auto_checker
+
+from .default_prompts import DEFAULT_ROOM_PROMPT
 from .models import Room
 from . import db
 
@@ -64,8 +68,8 @@ def index():
                 id=str(uuid.uuid4()),
                 name=name,
                 description=description,
-                check_prompt=DEFAULT_CHECK_PROMPT,
-                task_prompt=DEFAULT_TASK_PROMPT,
+                check_prompt=DEFAULT_ROOM_PROMPT,
+                task_prompt=DEFAULT_ROOM_PROMPT,
             )
             db.session.add(room)
             db.session.commit()
@@ -76,8 +80,7 @@ def index():
     return render_template(
         "index.html",
         rooms=rooms,
-        default_check_prompt=DEFAULT_CHECK_PROMPT,
-        default_task_prompt=DEFAULT_TASK_PROMPT,
+        default_room_prompt=DEFAULT_ROOM_PROMPT,
     )
 
 
@@ -91,18 +94,20 @@ def room_detail(room_id: str):
     if request.method == "POST":
         action = request.form.get("action")
 
-        if action == "update_prompts":
-            room.check_prompt = request.form.get("check_prompt", room.check_prompt)
-            room.task_prompt = request.form.get("task_prompt", room.task_prompt)
-            db.session.commit()
-            flash("Промпты обновлены только для этой комнаты.", "success")
+        if action == "update_prompt":
+            new_prompt = request.form.get("prompt", "").strip()
+            if not new_prompt:
+                flash("Введите текст промпта для комнаты.", "error")
+            else:
+                room.prompt = new_prompt
+                db.session.commit()
+                flash("Промпт комнаты обновлён.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
-        if action == "reset_prompts":
-            room.check_prompt = DEFAULT_CHECK_PROMPT
-            room.task_prompt = DEFAULT_TASK_PROMPT
+        if action == "reset_prompt":
+            room.prompt = DEFAULT_ROOM_PROMPT
             db.session.commit()
-            flash("Промпты комнаты сброшены к шаблону.", "info")
+            flash("Промпт комнаты сброшен к шаблону.", "info")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
         if action == "upload_submission":
@@ -132,6 +137,63 @@ def room_detail(room_id: str):
                 flash("Шаблон сохранён для комнаты.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
+        if action == "run_auto_checker":
+            archive_name = request.form.get("dataset")
+            if not archive_name:
+                flash("Выберите архив с заданиями для проверки.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            archive_path = uploads_dir / archive_name
+            if not archive_path.exists():
+                flash("Выбранный архив не найден.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            workspace_dir = storage / "workspace" / Path(archive_name).stem
+            if workspace_dir.exists():
+                shutil.rmtree(workspace_dir)
+
+            try:
+                _extract_zip_safe(archive_path, workspace_dir)
+            except (ValueError, zipfile.BadZipFile) as err:
+                flash(f"Не удалось распаковать архив: {err}", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            if room.template_filename:
+                template_path = templates_dir / room.template_filename
+            else:
+                template_path = Path(current_app.config["DEFAULT_TEMPLATE_PATH"])
+
+            if not template_path.exists():
+                flash("Файл шаблона для проверки не найден.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            try:
+                summary_path = run_auto_checker(
+                    root_dir=str(workspace_dir),
+                    template_path=str(template_path),
+                    room_prompt=room.prompt,
+                )
+            except Exception as err:  # noqa: BLE001
+                current_app.logger.exception("Auto-checker failed")
+                flash(f"Проверка завершилась с ошибкой: {err}", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            if not summary_path or not Path(summary_path).exists():
+                flash("Не удалось сформировать итоговый отчёт.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            reports_dir = storage / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            destination_report = reports_dir / Path(summary_path).name
+            shutil.copy(summary_path, destination_report)
+
+            return send_from_directory(
+                reports_dir,
+                destination_report.name,
+                as_attachment=True,
+                download_name=destination_report.name,
+            )
+
     uploads = _list_files(uploads_dir)
     templates = _list_files(templates_dir)
 
@@ -140,8 +202,8 @@ def room_detail(room_id: str):
         room=room,
         uploads=uploads,
         templates=templates,
-        default_check_prompt=DEFAULT_CHECK_PROMPT,
-        default_task_prompt=DEFAULT_TASK_PROMPT,
+        default_room_prompt=DEFAULT_ROOM_PROMPT,
+        available_archives=[item["name"] for item in uploads],
     )
 
 
@@ -155,3 +217,12 @@ def download_upload(room_id: str, filename: str):
 def download_template(room_id: str, filename: str):
     storage = _room_storage(room_id)
     return send_from_directory(storage / "templates", filename, as_attachment=True)
+def _extract_zip_safe(zip_path: Path, destination: Path) -> None:
+    with zipfile.ZipFile(zip_path) as archive:
+        destination.mkdir(parents=True, exist_ok=True)
+        root = destination.resolve()
+        for member in archive.infolist():
+            target_path = (root / member.filename).resolve(strict=False)
+            if not str(target_path).startswith(str(root)):
+                raise ValueError("Обнаружена небезопасная структура архива.")
+        archive.extractall(destination)

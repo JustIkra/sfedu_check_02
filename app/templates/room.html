@@ -3,99 +3,108 @@
 {% block title %}Комната {{ room.name }} · Auto Checker{% endblock %}
 
 {% block content %}
-<section>
-  <h2>{{ room.name }}</h2>
-  {% if room.description %}
-    <p>{{ room.description }}</p>
-  {% endif %}
+<section class="room-header card">
+  <div>
+    <h2>{{ room.name }}</h2>
+    {% if room.description %}
+      <p>{{ room.description }}</p>
+    {% else %}
+      <p class="muted">Добавьте описание, чтобы подсказать студентам контекст задания.</p>
+    {% endif %}
+  </div>
+  <form method="post" class="inline-form">
+    <input type="hidden" name="action" value="reset_prompt">
+    <button type="submit" class="ghost">Сбросить промпт к шаблону</button>
+  </form>
 </section>
 
-<section>
-  <h3>Настройка промптов</h3>
-  <form method="post">
-    <input type="hidden" name="action" value="update_prompts">
+<section class="card">
+  <h3>Голос вашей комнаты</h3>
+  <p class="muted">Этот текст будет автоматически добавлен к инструкциям авто-проверки.</p>
+  <form method="post" class="prompt-form">
+    <input type="hidden" name="action" value="update_prompt">
     <label>
-      Промпт проверки
-      <textarea name="check_prompt" rows="6" required>{{ room.check_prompt }}</textarea>
+      Человечный промпт
+      <textarea name="prompt" rows="7" required>{{ room.prompt }}</textarea>
     </label>
-    <label>
-      Промпт анализа заданий
-      <textarea name="task_prompt" rows="6" required>{{ room.task_prompt }}</textarea>
-    </label>
-    <div class="actions">
-      <button type="submit">Сохранить промпты комнаты</button>
-    </div>
+    <button type="submit">Сохранить промпт</button>
   </form>
-  <form method="post" class="inline-form">
-    <input type="hidden" name="action" value="reset_prompts">
-    <button type="submit" class="secondary">Сбросить к шаблону</button>
-  </form>
-  <details>
-    <summary>Глобальные значения по умолчанию</summary>
-    <article>
-      <header>Промпт проверки</header>
-      <pre>{{ default_check_prompt }}</pre>
-    </article>
-    <article>
-      <header>Промпт анализа заданий</header>
-      <pre>{{ default_task_prompt }}</pre>
-    </article>
+  <details class="default-prompt">
+    <summary>Показать шаблон по умолчанию</summary>
+    <pre>{{ default_room_prompt }}</pre>
   </details>
 </section>
 
-<section>
-  <h3>Загрузка заданий</h3>
-  <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="action" value="upload_submission">
-    <label>
-      Архив с заданиями (.zip)
-      <input type="file" name="submission_zip" accept=".zip" required>
-    </label>
-    <button type="submit">Загрузить архив</button>
-  </form>
+<section class="cards-grid">
+  <article class="card">
+    <h3>Загрузить задания</h3>
+    <form method="post" enctype="multipart/form-data" class="stacked">
+      <input type="hidden" name="action" value="upload_submission">
+      <label>
+        Архив .zip с работами
+        <input type="file" name="submission_zip" accept=".zip" required>
+      </label>
+      <button type="submit">Сохранить архив</button>
+    </form>
+    {% if uploads %}
+      <ul class="file-list">
+        {% for upload in uploads %}
+          <li>
+            <a href="{{ url_for('main.download_upload', room_id=room.id, filename=upload.name) }}">{{ upload.name }}</a>
+            <span class="meta">{{ (upload.size / 1024)|round(1) }} КБ</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Пока нет загруженных архивов.</p>
+    {% endif %}
+  </article>
 
-  {% if uploads %}
-    <h4>Загруженные архивы</h4>
-    <ul>
-      {% for upload in uploads %}
-        <li>
-          <a href="{{ url_for('main.download_upload', room_id=room.id, filename=upload.name) }}">{{ upload.name }}</a>
-          <small>{{ (upload.size / 1024)|round(1) }} КБ</small>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>Файлы ещё не загружены.</p>
-  {% endif %}
+  <article class="card">
+    <h3>Шаблон критериев</h3>
+    <form method="post" enctype="multipart/form-data" class="stacked">
+      <input type="hidden" name="action" value="upload_template">
+      <label>
+        Файл шаблона (docx или zip)
+        <input type="file" name="template_file">
+      </label>
+      <button type="submit">Обновить шаблон</button>
+    </form>
+    {% if room.template_filename %}
+      <p class="meta">Текущий шаблон: <strong>{{ room.template_filename }}</strong></p>
+    {% endif %}
+    {% if templates %}
+      <ul class="file-list">
+        {% for template in templates %}
+          <li>
+            <a href="{{ url_for('main.download_template', room_id=room.id, filename=template.name) }}">{{ template.name }}</a>
+            <span class="meta">{{ (template.size / 1024)|round(1) }} КБ</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Загрузите файл с критериями, чтобы уточнить оценивание.</p>
+    {% endif %}
+  </article>
 </section>
 
-<section>
-  <h3>Шаблоны</h3>
-  <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="action" value="upload_template">
+<section class="card">
+  <h3>Автопроверка</h3>
+  <p class="muted">Выберите архив с заданиями и получите Excel-отчёт с результатами проверки.</p>
+  <form method="post" class="auto-checker-form">
+    <input type="hidden" name="action" value="run_auto_checker">
     <label>
-      Файл шаблона (zip/docx/pdf и т.д.)
-      <input type="file" name="template_file">
+      Архив для проверки
+      <select name="dataset" {% if not available_archives %}disabled{% endif %}>
+        {% for filename in available_archives %}
+          <option value="{{ filename }}">{{ filename }}</option>
+        {% endfor %}
+      </select>
     </label>
-    <button type="submit">Загрузить шаблон</button>
+    <button type="submit" {% if not available_archives %}disabled{% endif %}>Запустить проверку</button>
   </form>
-
-  {% if room.template_filename %}
-    <p>Текущий шаблон по умолчанию: <strong>{{ room.template_filename }}</strong></p>
-  {% endif %}
-
-  {% if templates %}
-    <h4>Загруженные шаблоны</h4>
-    <ul>
-      {% for template in templates %}
-        <li>
-          <a href="{{ url_for('main.download_template', room_id=room.id, filename=template.name) }}">{{ template.name }}</a>
-          <small>{{ (template.size / 1024)|round(1) }} КБ</small>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>Шаблоны ещё не загружались. Этот шаг необязателен.</p>
+  {% if not available_archives %}
+    <p class="muted">Сначала загрузите архив с заданиями.</p>
   {% endif %}
 </section>
 {% endblock %}
