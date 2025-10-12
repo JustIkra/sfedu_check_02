@@ -1,17 +1,18 @@
 :root {
-  --bg: #f4f6f8;
+  --bg: #e9edf5;
   --card-bg: #ffffff;
-  --card-border: #d9dde3;
-  --text-muted: #5b6472;
-  --accent: #1b3a7a;
-  --accent-strong: #132a58;
-  --accent-soft: #eef1f7;
-  --shadow: 0 12px 32px rgba(19, 42, 88, 0.08);
+  --card-border: #c7d2e3;
+  --text-primary: #141b2f;
+  --text-muted: #465165;
+  --accent: #1f3d78;
+  --accent-strong: #152c56;
+  --accent-soft: #e3e9f7;
+  --shadow: 0 12px 30px rgba(21, 44, 86, 0.08);
 }
 
 body {
   background: var(--bg);
-  color: #1f2933;
+  color: var(--text-primary);
   min-height: 100vh;
 }
 
@@ -76,7 +77,7 @@ select,
 textarea {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid rgba(27, 58, 122, 0.25);
+  border: 1px solid rgba(31, 61, 120, 0.24);
   padding: 0.65rem 0.85rem;
   font-size: 1rem;
   background: #ffffff;
@@ -92,7 +93,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(27, 58, 122, 0.2);
+  box-shadow: 0 0 0 3px rgba(31, 61, 120, 0.18);
 }
 
 button,
@@ -107,7 +108,7 @@ input[type="submit"],
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 6px 16px rgba(19, 42, 88, 0.18);
+  box-shadow: 0 6px 16px rgba(21, 44, 86, 0.18);
 }
 
 button:hover,
@@ -115,7 +116,7 @@ button:focus,
 input[type="submit"]:hover,
 input[type="submit"]:focus {
   background: var(--accent-strong);
-  box-shadow: 0 8px 20px rgba(19, 42, 88, 0.22);
+  box-shadow: 0 8px 20px rgba(21, 44, 86, 0.22);
 }
 
 button:disabled,
@@ -240,7 +241,7 @@ input[type="submit"]:disabled {
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 0;
-  border-bottom: 1px dashed rgba(27, 58, 122, 0.15);
+  border-bottom: 1px dashed rgba(31, 61, 120, 0.18);
 }
 
 .auto-checker-form {
@@ -253,7 +254,7 @@ input[type="submit"]:disabled {
   padding: 1.25rem;
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  background: #f8fafc;
+  background: #f2f5fb;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   display: flex;
   flex-direction: column;
@@ -297,7 +298,7 @@ input[type="submit"]:disabled {
 .progress-message {
   margin: 0;
   font-size: 0.95rem;
-  color: #2f3747;
+  color: var(--text-primary);
 }
 
 .button {
@@ -312,13 +313,13 @@ input[type="submit"]:disabled {
   font-weight: 600;
   text-decoration: none;
   transition: background 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 6px 16px rgba(19, 42, 88, 0.18);
+  box-shadow: 0 6px 16px rgba(21, 44, 86, 0.18);
 }
 
 .button:hover,
 .button:focus {
   background: var(--accent-strong);
-  box-shadow: 0 8px 20px rgba(19, 42, 88, 0.22);
+  box-shadow: 0 8px 20px rgba(21, 44, 86, 0.22);
 }
 
 .button:disabled,

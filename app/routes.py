@@ -113,13 +113,16 @@ def room_detail(room_id: str):
 
         if action == "upload_submission":
             file = request.files.get("submission_zip")
-            if not file or not file.filename:
+            original_name = file.filename if file else ""
+            if not file or not original_name:
                 flash("Выберите zip-файл для загрузки.", "error")
             else:
-                filename = secure_filename(file.filename)
-                if not filename.lower().endswith(".zip"):
+                source_path = Path(original_name)
+                if source_path.suffix.lower() != ".zip":
                     flash("Разрешена загрузка только .zip файлов.", "error")
                 else:
+                    safe_stem = secure_filename(source_path.stem) or "archive"
+                    filename = f"{safe_stem}.zip"
                     destination = uploads_dir / filename
                     file.save(destination)
                     flash("Архив с заданиями загружен.", "success")
@@ -127,10 +130,18 @@ def room_detail(room_id: str):
 
         if action == "upload_template":
             template_file = request.files.get("template_file")
-            if not template_file or not template_file.filename:
+            original_name = template_file.filename if template_file else ""
+            if not template_file or not original_name:
                 flash("Выберите файл шаблона для загрузки.", "error")
             else:
-                filename = secure_filename(template_file.filename)
+                source_path = Path(original_name)
+                suffix = source_path.suffix.lower()
+                if suffix not in {".docx", ".zip"}:
+                    flash("Поддерживаются только файлы .docx или .zip.", "error")
+                    return redirect(url_for("main.room_detail", room_id=room.id))
+
+                safe_stem = secure_filename(source_path.stem) or "template"
+                filename = f"{safe_stem}{suffix}"
                 destination = templates_dir / filename
                 template_file.save(destination)
                 room.template_filename = filename
