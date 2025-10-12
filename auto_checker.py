@@ -731,7 +731,7 @@ def process_all_submissions(
         progress_callback("processing_submissions", 0, total_items)
 
     def worker(submission, template_text, client, room_prompt):
-        nonlocal results
+        nonlocal results, completed
         semaphore.acquire()
         try:
             # Создаём новый цикл событий для каждого потока
