@@ -28,6 +28,7 @@ from bs4 import BeautifulSoup
 from colorama import init
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from tqdm import tqdm
+from urllib.parse import urlparse
 
 # Импорт Gemini API
 from google import genai
@@ -70,14 +71,52 @@ REQUEST_TIMEOUT = 120  # Таймаут запроса (секунды)
 
 class GeminiClient:
     """Клиент для работы с Gemini API с автоматическими задержками и ротацией ключей."""
-    
+
     def __init__(self, api_key: str = None):
         self.api_keys = API_KEYS.copy()
         self.current_key_index = 0
         self.api_key = api_key or self.api_keys[self.current_key_index]
-        self.client = genai.Client(api_key=self.api_key)
+        self._http_options = self._build_http_options()
+        self.client = genai.Client(api_key=self.api_key, http_options=self._http_options)
         self.last_request_time = 0
         self.key_usage_count = {key: 0 for key in self.api_keys}
+
+    @staticmethod
+    def _build_http_options():
+        """Собирает настройки HTTP с учётом прокси из окружения."""
+
+        proxies = {}
+
+        raw_proxy = (
+            os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or os.environ.get("HTTP_PROXY")
+            or os.environ.get("http_proxy")
+        )
+
+        if not raw_proxy:
+            host = os.environ.get("PROXY_HOST")
+            port = os.environ.get("PROXY_PORT")
+            if host and port:
+                user = os.environ.get("PROXY_USER")
+                password = os.environ.get("PROXY_PASS")
+                credentials = f"{user}:{password}@" if user and password else ""
+                raw_proxy = f"http://{credentials}{host}:{port}"
+
+        if raw_proxy:
+            parsed = urlparse(raw_proxy)
+            if not parsed.scheme:
+                raw_proxy = f"http://{raw_proxy}"
+            proxies = {"http": raw_proxy, "https": raw_proxy}
+            logger.info("Используется прокси для Gemini API: %s", raw_proxy)
+
+        if not proxies:
+            return None
+
+        return types.HttpOptions(
+            client_args={"proxies": proxies},
+            async_client_args={"proxies": proxies},
+        )
         
     async def _wait_for_rate_limit(self):
         """Ожидание для соблюдения лимитов API."""
@@ -95,7 +134,7 @@ class GeminiClient:
         """Переключение на следующий API ключ."""
         self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
         self.api_key = self.api_keys[self.current_key_index]
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client(api_key=self.api_key, http_options=self._http_options)
         logger.info(f"Переключение на API ключ {self.current_key_index + 1}/{len(self.api_keys)}")
     
     async def _handle_quota_error(self, error_msg: str, attempt: int) -> int:
@@ -154,18 +193,34 @@ class GeminiClient:
             )
             
             # Собираем полный ответ
-            full_response = ""
-            for chunk in self.client.models.generate_content_stream(
+            response = self.client.models.generate_content(
                 model=model,
                 contents=contents,
                 config=generate_content_config,
-            ):
-                if hasattr(chunk, 'text') and chunk.text:
-                    full_response += chunk.text
-            
+            )
+
+            # Собираем текст ответа
+            full_response = getattr(response, "text", "") or ""
+            if not full_response and getattr(response, "candidates", None):
+                parts: list[str] = []
+                for candidate in response.candidates:
+                    content = getattr(candidate, "content", None)
+                    if not content:
+                        continue
+                    for part in getattr(content, "parts", []):
+                        text_part = getattr(part, "text", None)
+                        if text_part:
+                            parts.append(text_part)
+                full_response = "".join(parts)
+
             # Увеличиваем счетчик использования ключа
             self.key_usage_count[self.api_key] += 1
-            logger.debug(f"Получен ответ от модели {model} (ключ {self.current_key_index + 1}, использований: {self.key_usage_count[self.api_key]})")
+            logger.debug(
+                "Получен ответ от модели %s (ключ %s, использований: %s)",
+                model,
+                self.current_key_index + 1,
+                self.key_usage_count[self.api_key],
+            )
             return full_response.strip()
             
         except Exception as e:

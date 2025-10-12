@@ -41,4 +41,4 @@ else
 fi
 
 echo "Запуск веб-сервера"
-exec gunicorn --bind 0.0.0.0:9003 "wsgi:app"
+exec gunicorn --bind 0.0.0.0:9003 --timeout "${GUNICORN_TIMEOUT:-600}" "wsgi:app"

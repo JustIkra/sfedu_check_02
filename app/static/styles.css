@@ -1,11 +1,11 @@
 :root {
-  --bg: linear-gradient(135deg, #f6f7ff 0%, #eef3ff 100%);
-  --card-bg: #ffffff;
-  --card-border: rgba(119, 145, 219, 0.2);
-  --text-muted: #6b6f7b;
-  --accent: #4c6ef5;
-  --accent-soft: rgba(76, 110, 245, 0.1);
-  --shadow: 0 20px 45px rgba(76, 110, 245, 0.12);
+  --bg: linear-gradient(145deg, #fef5ec 0%, #fdfcf7 100%);
+  --card-bg: #fffdf8;
+  --card-border: rgba(214, 191, 163, 0.35);
+  --text-muted: #6f6155;
+  --accent: #d9802e;
+  --accent-soft: rgba(217, 128, 46, 0.14);
+  --shadow: 0 22px 48px rgba(217, 128, 46, 0.16);
 }
 
 body {
@@ -42,6 +42,12 @@ body {
 .header nav a {
   color: var(--accent);
   font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.header nav a:hover,
+.header nav a:focus {
+  color: #a85d1f;
 }
 
 .card {
@@ -50,6 +56,63 @@ body {
   padding: 1.5rem;
   box-shadow: var(--shadow);
   border: 1px solid var(--card-border);
+}
+
+input[type="text"],
+input[type="file"],
+select,
+textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(217, 128, 46, 0.35);
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  background: rgba(255, 253, 248, 0.85);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input[type="file"] {
+  padding: 0.45rem 0.85rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #bf6d1f;
+  box-shadow: 0 0 0 3px rgba(217, 128, 46, 0.15);
+}
+
+button,
+input[type="submit"],
+.card button,
+.card input[type="submit"] {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow: 0 12px 24px rgba(217, 128, 46, 0.18);
+}
+
+button:hover,
+button:focus,
+input[type="submit"]:hover,
+input[type="submit"]:focus {
+  transform: translateY(-1px);
+  background: #bf6d1f;
+  box-shadow: 0 16px 28px rgba(191, 109, 31, 0.22);
+}
+
+button:disabled,
+input[type="submit"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
 }
 
 .content {
@@ -72,18 +135,18 @@ body {
 }
 
 .flash.error {
-  border-color: #d93025;
-  background: rgba(217, 48, 37, 0.12);
+  border-color: #d94f37;
+  background: rgba(217, 79, 55, 0.12);
 }
 
 .flash.success {
-  border-color: #0f9d58;
-  background: rgba(15, 157, 88, 0.12);
+  border-color: #3d9970;
+  background: rgba(61, 153, 112, 0.14);
 }
 
 .flash.info {
-  border-color: #1a73e8;
-  background: rgba(26, 115, 232, 0.12);
+  border-color: #4b7fcc;
+  background: rgba(75, 127, 204, 0.12);
 }
 
 .hero {
@@ -131,6 +194,11 @@ body {
   background: transparent;
   border: 1px dashed var(--accent);
   color: var(--accent);
+}
+
+.ghost:hover,
+.ghost:focus {
+  background: rgba(217, 128, 46, 0.08);
 }
 
 .prompt-form textarea {
