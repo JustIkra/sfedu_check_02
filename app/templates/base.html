@@ -8,23 +8,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
-    <main class="container">
-      <header class="header">
-        <h1><a href="{{ url_for('main.index') }}">Auto Checker</a></h1>
-        <p class="tagline">Комнаты проверки с индивидуальными промптами и загрузкой заданий</p>
+    <div class="app-shell">
+      <header class="header card">
+        <div>
+          <h1><a href="{{ url_for('main.index') }}">Auto Checker</a></h1>
+          <p class="tagline">Проверка, которая звучит по-человечески</p>
+        </div>
+        <nav>
+          <a href="{{ url_for('main.index') }}">Комнаты</a>
+          <a href="https://github.com" target="_blank" rel="noreferrer">Помощь</a>
+        </nav>
       </header>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="messages">
             {% for category, message in messages %}
-              <article class="{{ category }}">{{ message }}</article>
+              <article class="flash {{ category }}">{{ message }}</article>
             {% endfor %}
           </div>
         {% endif %}
       {% endwith %}
 
-      {% block content %}{% endblock %}
-    </main>
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="footer">
+        <p>Auto Checker · {{ config.get('PROJECT_TAGLINE', 'поддержка наставников и студентов') }}</p>
+      </footer>
+    </div>
   </body>
 </html>

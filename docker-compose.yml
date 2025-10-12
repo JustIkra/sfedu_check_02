@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    ports:
+      - "9003:9003"
+    environment:
+      SECRET_KEY: "compose-secret-key"
+      DISABLE_VPN: "false"
+      DATABASE_PATH: "/app/instance/auto_checker.db"
+      DATA_STORAGE: "/app/instance/data"
+      PROXY_HOST: "45.147.196.230"
+      PROXY_PORT: "47448"
+      PROXY_USER: "proxy_user"
+      PROXY_PASS: "jJZooP0vNdYbqdQ9"
+    volumes:
+      - ./instance:/app/instance
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:9003/\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
