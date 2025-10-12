@@ -17,7 +17,7 @@ import logging
 import os
 import threading
 from threading import Thread
-from typing import List
+from typing import Callable, List
 import time
 import random
 import re
@@ -712,6 +712,7 @@ def process_all_submissions(
     template_text: str,
     client: GeminiClient,
     room_prompt: str = "",
+    progress_callback: Callable[[str, int, int], None] | None = None,
 ):
     """
     Обрабатывает все подачи одновременно с ограничением на количество одновременно выполняемых задач.
@@ -719,7 +720,15 @@ def process_all_submissions(
     semaphore = threading.Semaphore(1)  # Ограничение до 1 одновременного потока для бесплатного API
     results = []
     results_lock = threading.Lock()
-    progress_bar = tqdm(total=len(json_user_files), desc="Обработка подач")
+    progress_lock = threading.Lock()
+    total_items = len(json_user_files)
+    completed = 0
+
+    progress_bar = None
+    if progress_callback is None and total_items:
+        progress_bar = tqdm(total=total_items, desc="Обработка подач")
+    elif progress_callback is not None:
+        progress_callback("processing_submissions", 0, total_items)
 
     def worker(submission, template_text, client, room_prompt):
         nonlocal results
@@ -739,7 +748,13 @@ def process_all_submissions(
             with results_lock:
                 results.append(None)
         finally:
-            progress_bar.update(1)
+            if progress_bar is not None:
+                progress_bar.update(1)
+            with progress_lock:
+                completed += 1
+                current_completed = completed
+            if progress_callback is not None:
+                progress_callback("processing_submissions", current_completed, total_items)
             semaphore.release()
 
     threads = []
@@ -753,7 +768,8 @@ def process_all_submissions(
     for thread in threads:
         thread.join()
 
-    progress_bar.close()
+    if progress_bar is not None:
+        progress_bar.close()
     logger.info("Все подачи были обработаны.")
     return results
 
@@ -891,6 +907,7 @@ async def run_auto_checker_async(
     root_dir: str,
     template_path: str,
     room_prompt: str = "",
+    progress_callback: Callable[[str, int, int], None] | None = None,
 ) -> tuple[pd.DataFrame | None, str | None]:
     """Запускает проверку и возвращает DataFrame и путь к ведомости."""
 
@@ -913,6 +930,10 @@ async def run_auto_checker_async(
         logger.warning("Не найдены подачи для обработки в %s", root_dir)
         return None, None
 
+    total_submissions = len(json_user_files)
+    if progress_callback is not None:
+        progress_callback("collecting_submissions", 0, total_submissions)
+
     processed_count, _ = await check_processed_students(root_dir, json_user_files)
     remaining_count = len(json_user_files) - processed_count
 
@@ -924,9 +945,20 @@ async def run_auto_checker_async(
     )
 
     client = GeminiClient()
-    process_all_submissions(json_user_files, template_text, client, room_prompt=room_prompt)
+    process_all_submissions(
+        json_user_files,
+        template_text,
+        client,
+        room_prompt=room_prompt,
+        progress_callback=progress_callback,
+    )
 
+    if progress_callback is not None:
+        progress_callback("generating_summary", 0, 1)
     df, summary_path = await generate_final_summary(root_dir)
+    if progress_callback is not None:
+        progress_callback("generating_summary", 1, 1)
+        progress_callback("finished", total_submissions, total_submissions)
     logger.info("Итоговая ведомость сохранена: %s", summary_path)
     return df, summary_path
 
@@ -935,11 +967,17 @@ def run_auto_checker(
     root_dir: str,
     template_path: str,
     room_prompt: str = "",
+    progress_callback: Callable[[str, int, int], None] | None = None,
 ) -> str | None:
     """Синхронный фасад для запуска проверки из веб-приложения."""
 
     _df, summary_path = asyncio.run(
-        run_auto_checker_async(root_dir, template_path, room_prompt=room_prompt),
+        run_auto_checker_async(
+            root_dir,
+            template_path,
+            room_prompt=room_prompt,
+            progress_callback=progress_callback,
+        ),
     )
     return summary_path
 
