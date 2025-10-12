@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
@@ -26,6 +28,18 @@ def create_app() -> Flask:
     data_storage = os.environ.get("DATA_STORAGE") or os.path.join(instance_path, "data")
     os.makedirs(data_storage, exist_ok=True)
     app.config["DATA_STORAGE"] = data_storage
+
+    default_template = os.environ.get("DEFAULT_TEMPLATE_PATH")
+    if default_template:
+        app.config["DEFAULT_TEMPLATE_PATH"] = default_template
+    else:
+        repo_root = Path(app.root_path).resolve().parent
+        app.config["DEFAULT_TEMPLATE_PATH"] = str(repo_root / "Шаблон.docx")
+
+    app.config["PROJECT_TAGLINE"] = os.environ.get(
+        "PROJECT_TAGLINE",
+        "поддержка наставников и студентов",
+    )
 
     db.init_app(app)
 

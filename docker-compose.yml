@@ -7,9 +7,13 @@ services:
       - "9003:9003"
     environment:
       SECRET_KEY: "compose-secret-key"
-      DISABLE_VPN: "true"
+      DISABLE_VPN: "false"
       DATABASE_PATH: "/app/instance/auto_checker.db"
       DATA_STORAGE: "/app/instance/data"
+      PROXY_HOST: "45.147.196.230"
+      PROXY_PORT: "47448"
+      PROXY_USER: "proxy_user"
+      PROXY_PASS: "jJZooP0vNdYbqdQ9"
     volumes:
       - ./instance:/app/instance
     healthcheck:

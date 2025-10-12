@@ -3,51 +3,54 @@
 {% block title %}Auto Checker · Комнаты{% endblock %}
 
 {% block content %}
-<section>
-  <h2>Создать комнату проверки</h2>
-  <form method="post">
-    <div class="grid">
-      <label>
-        Название комнаты
-        <input type="text" name="name" required placeholder="Например, Группа ИИ-101">
-      </label>
-      <label>
-        Описание (необязательно)
-        <input type="text" name="description" placeholder="Семинар 3, проверка эссе">
-      </label>
-    </div>
-    <button type="submit">Создать комнату</button>
+<section class="hero">
+  <div>
+    <h2>Создайте дружелюбное пространство для проверки</h2>
+    <p>
+      Комната объединяет студентов, задания и единый промпт-наставник. Добавьте описание,
+      загрузите архив с работами и получите готовый отчёт в один клик.
+    </p>
+  </div>
+  <form method="post" class="card">
+    <h3>Новая комната</h3>
+    <label>
+      Название
+      <input type="text" name="name" required placeholder="Например, Группа ИИ-101">
+    </label>
+    <label>
+      Короткое описание
+      <input type="text" name="description" placeholder="Семинар 3 · проверка эссе">
+    </label>
+    <button type="submit">Создать</button>
   </form>
 </section>
 
 <section>
-  <h2>Доступные комнаты</h2>
+  <h2>Комнаты и их настроение</h2>
   {% if rooms %}
-    <ul>
+    <div class="room-grid">
       {% for room in rooms %}
-        <li>
-          <a href="{{ url_for('main.room_detail', room_id=room.id) }}">{{ room.name }}</a>
-          <small>Создана {{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+        <article class="card room-card">
+          <header>
+            <h3><a href="{{ url_for('main.room_detail', room_id=room.id) }}">{{ room.name }}</a></h3>
+            <p class="meta">{{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+          </header>
           {% if room.description %}
             <p>{{ room.description }}</p>
+          {% else %}
+            <p class="muted">Описание можно добавить в любой момент.</p>
           {% endif %}
-        </li>
+        </article>
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
-    <p>Комнаты пока не созданы. Заполните форму выше, чтобы начать.</p>
+    <p class="muted">Комнаты пока не созданы. Начните с формы выше, чтобы открыть первую.</p>
   {% endif %}
 </section>
 
-<section>
-  <h3>Глобальные промпты по умолчанию</h3>
-  <article>
-    <header>Промпт проверки</header>
-    <pre>{{ default_check_prompt }}</pre>
-  </article>
-  <article>
-    <header>Промпт анализа заданий</header>
-    <pre>{{ default_task_prompt }}</pre>
-  </article>
+<section class="prompt-preview card">
+  <h3>Промпт по умолчанию</h3>
+  <p class="muted">Он используется в каждой новой комнате и добавляется к инструкциям автопроверки.</p>
+  <pre>{{ default_room_prompt }}</pre>
 </section>
 {% endblock %}

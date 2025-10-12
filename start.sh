@@ -4,6 +4,19 @@ set -euo pipefail
 VPN_CONFIG_PATH="${VPN_CONFIG_PATH:-/app/client.ovpn}"
 OPENVPN_PID_FILE="/tmp/openvpn.pid"
 
+PROXY_HOST="${PROXY_HOST:-45.147.196.230}"
+PROXY_PORT="${PROXY_PORT:-47448}"
+PROXY_USER="${PROXY_USER:-proxy_user}"
+PROXY_PASS="${PROXY_PASS:-jJZooP0vNdYbqdQ9}"
+
+if [ -n "$PROXY_HOST" ] && [ -n "$PROXY_PORT" ]; then
+  export http_proxy="http://${PROXY_USER}:${PROXY_PASS}@${PROXY_HOST}:${PROXY_PORT}"
+  export https_proxy="${http_proxy}"
+  export HTTP_PROXY="$http_proxy"
+  export HTTPS_PROXY="$https_proxy"
+  echo "Используется прокси ${PROXY_HOST}:${PROXY_PORT}"
+fi
+
 cleanup() {
   if [ -f "$OPENVPN_PID_FILE" ]; then
     kill "$(cat "$OPENVPN_PID_FILE")" 2>/dev/null || true
