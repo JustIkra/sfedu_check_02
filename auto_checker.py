@@ -808,12 +808,18 @@ async def generate_final_summary(root_dir: str):
                         
                         if ai_detected:
                             ai_status = f"Да ({ai_confidence})"
-                            ai_details = f"Причины: {'; '.join(ai_reasons[:3])}"  # Первые 3 причины
-                            if len(ai_reasons) > 3:
-                                ai_details += f" и еще {len(ai_reasons) - 3}"
+                            if ai_comment:
+                                ai_details = ai_comment.strip()
+                            elif ai_reasons:
+                                ai_details = f"Причины: {'; '.join(ai_reasons)}"
+                            else:
+                                ai_details = "Признаки AI-генерации зафиксированы"
                         else:
                             ai_status = "Нет"
-                            ai_details = "Признаки AI-генерации не обнаружены"
+                            if ai_comment:
+                                ai_details = ai_comment.strip()
+                            else:
+                                ai_details = "Признаки AI-генерации не обнаружены"
                     else:
                         ai_status = "Не проверено"
                         ai_details = "Проверка не выполнялась"

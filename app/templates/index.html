@@ -3,54 +3,116 @@
 {% block title %}Auto Checker · Комнаты{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <div>
-    <h2>Организуйте проверку работ в едином окне</h2>
+<section class="hero-panel card">
+  <div class="hero-panel__content">
+    <span class="badge">Автоматизированная проверка</span>
+    <h2>Контролируйте экспертизу материалов в едином окне</h2>
     <p>
-      Комната объединяет задания, критерии и промпт эксперта. Опишите контекст,
-      загрузите архив с материалами и сформируйте отчёт по результатам проверки.
+      Auto Checker собирает задания, шаблоны критериев и промпт для общения с моделью.
+      Комната фиксирует контекст и помогает безошибочно подготовить итоговый отчёт.
+    </p>
+    <ul class="hero-panel__list">
+      <li>Загружайте архивы с работами и шаблоны критериев в защищённом хранилище.</li>
+      <li>Используйте согласованный промпт, чтобы модель формировала единые ответы.</li>
+      <li>Получайте Excel-отчёт с подробными комментариями и признаками AI-происхождения.</li>
+    </ul>
+  </div>
+  <div class="hero-panel__meta">
+    <div class="stat">
+      <span class="stat__value">{{ rooms|length }}</span>
+      <span class="stat__label">активных комнат</span>
+    </div>
+    <div class="stat">
+      <span class="stat__value">{{ default_room_prompt|length }}</span>
+      <span class="stat__label">символов в базовом промпте</span>
+    </div>
+    <p class="hero-panel__note">
+      Создайте комнату, опишите задачу и запустите проверку — система сообщит о прогрессе онлайн.
     </p>
   </div>
-  <form method="post" class="card">
-    <h3>Новая комната</h3>
-    <label>
-      Название
-      <input type="text" name="name" required placeholder="Например, Поток 1 · контрольная">
-    </label>
-    <label>
-      Краткое описание
-      <input type="text" name="description" placeholder="Дисциплина, дата, формат">
-    </label>
-    <button type="submit">Создать</button>
-  </form>
 </section>
 
-<section>
-  <h2>Активные комнаты</h2>
+<section class="grid-two">
+  <form method="post" class="card form-card">
+    <div class="form-card__header">
+      <h3>Новая комната</h3>
+      <p>Укажите название и контекст задания. Описание можно изменить позже.</p>
+    </div>
+    <div class="field">
+      <label for="room-name">Название</label>
+      <input
+        id="room-name"
+        type="text"
+        name="name"
+        required
+        placeholder="Например, Экзамен по педагогике · поток 1"
+      >
+    </div>
+    <div class="field">
+      <label for="room-description">Краткое описание</label>
+      <input
+        id="room-description"
+        type="text"
+        name="description"
+        placeholder="Факультет, формат, дата проведения"
+      >
+    </div>
+    <button type="submit">Создать комнату</button>
+  </form>
+
+  <article class="card guidance-card">
+    <h3>Как работает Auto Checker</h3>
+    <ol>
+      <li>Загрузите архив с работами и при необходимости файл шаблона критериев.</li>
+      <li>Уточните промпт: добавьте требования и ожидаемую структуру ответа.</li>
+      <li>Запустите проверку. Панель прогресса покажет этапы и позволит скачать отчёт.</li>
+    </ol>
+    <p class="guidance-card__note">
+      Платформа фиксирует историю запусков и хранит отчёты внутри комнаты.
+    </p>
+  </article>
+</section>
+
+<section class="card room-section">
+  <div class="section-heading">
+    <div>
+      <h2>Активные комнаты</h2>
+      <p class="section-subtitle">
+        Здесь отображаются все пространства для проверки. Новые комнаты появляются вверху списка.
+      </p>
+    </div>
+  </div>
   {% if rooms %}
     <div class="room-grid">
       {% for room in rooms %}
-        <article class="card room-card">
-          <header>
+        <article class="room-tile">
+          <div class="room-tile__header">
             <h3><a href="{{ url_for('main.room_detail', room_id=room.id) }}">{{ room.name }}</a></h3>
-            <p class="meta">{{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
-          </header>
+            <span class="room-tile__timestamp">Создана {{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+          </div>
           {% if room.description %}
-            <p>{{ room.description }}</p>
+            <p class="room-tile__description">{{ room.description }}</p>
           {% else %}
-            <p class="muted">Добавьте описание, чтобы зафиксировать требования к заданию.</p>
+            <p class="room-tile__description muted">Добавьте описание, чтобы закрепить требования и материалы.</p>
           {% endif %}
+          <div class="room-tile__actions">
+            <a class="link-button" href="{{ url_for('main.room_detail', room_id=room.id) }}">Перейти в комнату</a>
+          </div>
         </article>
       {% endfor %}
     </div>
   {% else %}
-    <p class="muted">Комнаты пока не созданы. Начните с формы выше, чтобы открыть первую.</p>
+    <p class="empty-state">Комнаты ещё не созданы. Используйте форму выше, чтобы открыть первую сессию проверки.</p>
   {% endif %}
 </section>
 
-<section class="prompt-preview card">
-  <h3>Промпт по умолчанию</h3>
-  <p class="muted">Текст автоматически применяется при создании новой комнаты и дополняет инструкции автооценивания.</p>
+<section class="card prompt-card">
+  <div class="section-heading">
+    <h3>Промпт по умолчанию</h3>
+    <p class="section-subtitle">
+      Текст применяется при создании новой комнаты и служит отправной точкой для инструкций модели.
+    </p>
+  </div>
   <pre>{{ default_room_prompt }}</pre>
 </section>
 {% endblock %}
