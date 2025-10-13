@@ -49,12 +49,9 @@ logger = logging.getLogger(__name__)
 
 # API ключи Gemini для ротации
 API_KEYS = [
-    "AIzaSyBP-sSpfUVTAWXd-prxEvdbBeLCaw_NCsk",
-    "AIzaSyC6exCJDufHqzSj10vMGAJ0GgIT4WnmWQA", 
-    "AIzaSyATbFpgBVoYmxr0oaaRI9tEstkXM5aHmwY",
-    "AIzaSyDNyyAGQVSoqw1gDov03iRNtx9-9vH28iI",
-    "AIzaSyDDzd5N3Z_be3OMhsPQGhF4YHc9bM5RAMo",
-    "AIzaSyAWQjDRCIwGfn74jfaNaZjSUBsvAu9hpKw"
+    "AIzaSyBZERjXBrLTMniOGnajrIrzoZvBkcx8_dE",
+    "AIzaSyBVyS1pW5X7WW6qKLbd4wZxGYy4oLV5YGA",
+    "AIzaSyDNRbu7_VJmp1wwY_9Ziz8VqXRQo7CNYJo",
 ]
 
 # Список моделей Gemini для перебора
