@@ -5,28 +5,28 @@
 {% block content %}
 <section class="hero">
   <div>
-    <h2>Создайте дружелюбное пространство для проверки</h2>
+    <h2>Организуйте проверку работ в едином окне</h2>
     <p>
-      Комната объединяет студентов, задания и единый промпт-наставник. Добавьте описание,
-      загрузите архив с работами и получите готовый отчёт в один клик.
+      Комната объединяет задания, критерии и промпт эксперта. Опишите контекст,
+      загрузите архив с материалами и сформируйте отчёт по результатам проверки.
     </p>
   </div>
   <form method="post" class="card">
     <h3>Новая комната</h3>
     <label>
       Название
-      <input type="text" name="name" required placeholder="Например, Группа ИИ-101">
+      <input type="text" name="name" required placeholder="Например, Поток 1 · контрольная">
     </label>
     <label>
-      Короткое описание
-      <input type="text" name="description" placeholder="Семинар 3 · проверка эссе">
+      Краткое описание
+      <input type="text" name="description" placeholder="Дисциплина, дата, формат">
     </label>
     <button type="submit">Создать</button>
   </form>
 </section>
 
 <section>
-  <h2>Комнаты и их настроение</h2>
+  <h2>Активные комнаты</h2>
   {% if rooms %}
     <div class="room-grid">
       {% for room in rooms %}
@@ -38,7 +38,7 @@
           {% if room.description %}
             <p>{{ room.description }}</p>
           {% else %}
-            <p class="muted">Описание можно добавить в любой момент.</p>
+            <p class="muted">Добавьте описание, чтобы зафиксировать требования к заданию.</p>
           {% endif %}
         </article>
       {% endfor %}
@@ -50,7 +50,7 @@
 
 <section class="prompt-preview card">
   <h3>Промпт по умолчанию</h3>
-  <p class="muted">Он используется в каждой новой комнате и добавляется к инструкциям автопроверки.</p>
+  <p class="muted">Текст автоматически применяется при создании новой комнаты и дополняет инструкции автооценивания.</p>
   <pre>{{ default_room_prompt }}</pre>
 </section>
 {% endblock %}
