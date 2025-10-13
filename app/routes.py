@@ -2,12 +2,17 @@ import os
 import shutil
 import uuid
 import zipfile
+from datetime import timezone
 from pathlib import Path
+from unicodedata import normalize
+from zoneinfo import ZoneInfo
 
 from flask import (
     Blueprint,
+    abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -15,12 +20,10 @@ from flask import (
     url_for,
 )
 from werkzeug.utils import secure_filename
-
-from auto_checker import run_auto_checker
-
 from .default_prompts import DEFAULT_ROOM_PROMPT
 from .models import Room
 from . import db
+from .background import ActiveJobError, job_manager
 
 
 bp = Blueprint("main", __name__)
@@ -39,6 +42,46 @@ def _room_storage(room_id: str) -> Path:
     return storage
 
 
+def _preserve_upload_name(original_name: str, allowed_suffixes: set[str], fallback: str) -> str:
+    """Return a safe filename while keeping the original Unicode characters."""
+
+    candidate = Path(original_name or "").name
+    candidate = normalize("NFC", candidate.replace("\x00", ""))
+    candidate = candidate.replace("/", "_").replace("\\", "_").strip()
+
+    if not candidate or candidate in {".", ".."}:
+        candidate = fallback
+
+    suffix = Path(candidate).suffix.lower()
+    if suffix not in allowed_suffixes:
+        raise ValueError(suffix)
+
+    return candidate
+
+
+def _workspace_slug(filename: str, fallback: str = "archive") -> str:
+    stem = Path(filename or "").stem
+    stem = normalize("NFC", stem.replace("\x00", ""))
+    stem = stem.replace("/", "_").replace("\\", "_").strip()
+
+    if not stem or stem in {".", ".."}:
+        ascii_fallback = secure_filename(Path(filename or "").stem)
+        return ascii_fallback or fallback
+
+    return stem
+
+
+_MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+
+
+def _format_moscow(dt):
+    if dt is None:
+        return ""
+    aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    localised = aware.astimezone(_MOSCOW_TZ)
+    return localised.strftime("%d.%m.%Y %H:%M")
+
+
 def _list_files(directory: Path):
     if not directory.exists():
         return []
@@ -53,6 +96,71 @@ def _list_files(directory: Path):
         ],
         key=lambda item: item["name"].lower(),
     )
+
+
+class _AutoCheckLaunchError(Exception):
+    """Internal helper exception for auto-check launch failures."""
+
+    def __init__(self, message: str, status: int = 400, job_id: str | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status = status
+        self.job_id = job_id
+
+
+def _launch_auto_check(room: Room, *, dataset: str, storage: Path):
+    uploads_dir = storage / "uploads"
+    templates_dir = storage / "templates"
+
+    dataset = (dataset or "").strip()
+    if not dataset:
+        raise _AutoCheckLaunchError("Выберите архив с заданиями для проверки.")
+
+    archive_path = uploads_dir / dataset
+    if not archive_path.exists():
+        raise _AutoCheckLaunchError("Выбранный архив не найден.", status=404)
+
+    if room.template_filename:
+        template_path = templates_dir / room.template_filename
+    else:
+        template_path = Path(current_app.config["DEFAULT_TEMPLATE_PATH"])
+
+    if not template_path.exists():
+        raise _AutoCheckLaunchError("Файл шаблона для проверки не найден.", status=404)
+
+    active_job = job_manager.active_job_for_room(room.id)
+    if active_job:
+        raise _AutoCheckLaunchError(
+            "Проверка уже выполняется для этой комнаты.", status=409, job_id=active_job.id
+        )
+
+    dataset_name = Path(dataset).name
+    workspace_dir = storage / "workspace" / _workspace_slug(dataset_name)
+    if workspace_dir.exists():
+        shutil.rmtree(workspace_dir)
+
+    try:
+        _extract_zip_safe(archive_path, workspace_dir)
+    except (ValueError, zipfile.BadZipFile) as err:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
+        raise _AutoCheckLaunchError(f"Не удалось распаковать архив: {err}") from err
+
+    reports_dir = storage / "reports"
+
+    try:
+        job = job_manager.create_job(
+            room_id=room.id,
+            workspace_dir=workspace_dir,
+            template_path=template_path,
+            reports_dir=reports_dir,
+            room_prompt=room.prompt or DEFAULT_ROOM_PROMPT,
+        )
+    except ActiveJobError as exc:
+        raise _AutoCheckLaunchError(
+            "Проверка уже выполняется для этой комнаты.", status=409, job_id=exc.job_id
+        ) from exc
+
+    return job
 
 
 @bp.route("/", methods=["GET", "POST"])
@@ -81,6 +189,7 @@ def index():
         "index.html",
         rooms=rooms,
         default_room_prompt=DEFAULT_ROOM_PROMPT,
+        format_moscow=_format_moscow,
     )
 
 
@@ -112,11 +221,13 @@ def room_detail(room_id: str):
 
         if action == "upload_submission":
             file = request.files.get("submission_zip")
-            if not file or not file.filename:
+            original_name = file.filename if file else ""
+            if not file or not original_name:
                 flash("Выберите zip-файл для загрузки.", "error")
             else:
-                filename = secure_filename(file.filename)
-                if not filename.lower().endswith(".zip"):
+                try:
+                    filename = _preserve_upload_name(original_name, {".zip"}, "archive.zip")
+                except ValueError:
                     flash("Разрешена загрузка только .zip файлов.", "error")
                 else:
                     destination = uploads_dir / filename
@@ -124,12 +235,34 @@ def room_detail(room_id: str):
                     flash("Архив с заданиями загружен.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
+        if action == "start_auto_check":
+            dataset = request.form.get("dataset", "")
+            try:
+                job = _launch_auto_check(room, dataset=dataset, storage=storage)
+            except _AutoCheckLaunchError as err:
+                level = "info" if err.status == 409 else "error"
+                flash(err.message, level)
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            flash("Проверка запущена. Прогресс отображается ниже.", "info")
+            return redirect(url_for("main.room_detail", room_id=room.id))
+
         if action == "upload_template":
             template_file = request.files.get("template_file")
-            if not template_file or not template_file.filename:
+            original_name = template_file.filename if template_file else ""
+            if not template_file or not original_name:
                 flash("Выберите файл шаблона для загрузки.", "error")
             else:
-                filename = secure_filename(template_file.filename)
+                try:
+                    filename = _preserve_upload_name(
+                        original_name,
+                        {".docx"},
+                        "template.docx",
+                    )
+                except ValueError:
+                    flash("Поддерживаются только файлы .docx.", "error")
+                    return redirect(url_for("main.room_detail", room_id=room.id))
+
                 destination = templates_dir / filename
                 template_file.save(destination)
                 room.template_filename = filename
@@ -137,65 +270,9 @@ def room_detail(room_id: str):
                 flash("Шаблон сохранён для комнаты.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
-        if action == "run_auto_checker":
-            archive_name = request.form.get("dataset")
-            if not archive_name:
-                flash("Выберите архив с заданиями для проверки.", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            archive_path = uploads_dir / archive_name
-            if not archive_path.exists():
-                flash("Выбранный архив не найден.", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            workspace_dir = storage / "workspace" / Path(archive_name).stem
-            if workspace_dir.exists():
-                shutil.rmtree(workspace_dir)
-
-            try:
-                _extract_zip_safe(archive_path, workspace_dir)
-            except (ValueError, zipfile.BadZipFile) as err:
-                flash(f"Не удалось распаковать архив: {err}", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            if room.template_filename:
-                template_path = templates_dir / room.template_filename
-            else:
-                template_path = Path(current_app.config["DEFAULT_TEMPLATE_PATH"])
-
-            if not template_path.exists():
-                flash("Файл шаблона для проверки не найден.", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            try:
-                summary_path = run_auto_checker(
-                    root_dir=str(workspace_dir),
-                    template_path=str(template_path),
-                    room_prompt=room.prompt,
-                )
-            except Exception as err:  # noqa: BLE001
-                current_app.logger.exception("Auto-checker failed")
-                flash(f"Проверка завершилась с ошибкой: {err}", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            if not summary_path or not Path(summary_path).exists():
-                flash("Не удалось сформировать итоговый отчёт.", "error")
-                return redirect(url_for("main.room_detail", room_id=room.id))
-
-            reports_dir = storage / "reports"
-            reports_dir.mkdir(parents=True, exist_ok=True)
-            destination_report = reports_dir / Path(summary_path).name
-            shutil.copy(summary_path, destination_report)
-
-            return send_from_directory(
-                reports_dir,
-                destination_report.name,
-                as_attachment=True,
-                download_name=destination_report.name,
-            )
-
     uploads = _list_files(uploads_dir)
     templates = _list_files(templates_dir)
+    latest_job = job_manager.latest_job_for_room(room.id)
 
     return render_template(
         "room.html",
@@ -204,6 +281,8 @@ def room_detail(room_id: str):
         templates=templates,
         default_room_prompt=DEFAULT_ROOM_PROMPT,
         available_archives=[item["name"] for item in uploads],
+        latest_job_id=latest_job.id if latest_job else None,
+        format_moscow=_format_moscow,
     )
 
 
@@ -217,6 +296,58 @@ def download_upload(room_id: str, filename: str):
 def download_template(room_id: str, filename: str):
     storage = _room_storage(room_id)
     return send_from_directory(storage / "templates", filename, as_attachment=True)
+
+
+@bp.post("/rooms/<room_id>/auto-check")
+def start_auto_check(room_id: str):
+    room = Room.query.get_or_404(room_id)
+    storage = _room_storage(room_id)
+
+    is_async = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    payload = request.get_json(silent=True) if request.is_json else None
+    dataset = (payload or {}).get("dataset") if payload else request.form.get("dataset")
+
+    try:
+        job = _launch_auto_check(room, dataset=dataset or "", storage=storage)
+    except _AutoCheckLaunchError as err:
+        if is_async:
+            response = {"error": err.message}
+            if err.job_id:
+                response["job_id"] = err.job_id
+            return jsonify(response), err.status
+
+        level = "info" if err.status == 409 else "error"
+        flash(err.message, level)
+        return redirect(url_for("main.room_detail", room_id=room.id))
+
+    if is_async:
+        return jsonify({"job_id": job.id}), 202
+
+    flash("Проверка запущена. Прогресс отображается ниже.", "info")
+    return redirect(url_for("main.room_detail", room_id=room.id))
+
+
+@bp.get("/rooms/<room_id>/auto-check/<job_id>")
+def auto_check_status(room_id: str, job_id: str):
+    job = job_manager.get_job(job_id)
+    if job is None or job.room_id != room_id:
+        abort(404)
+    return jsonify(job.snapshot())
+
+
+@bp.get("/rooms/<room_id>/auto-check/<job_id>/download")
+def auto_check_download(room_id: str, job_id: str):
+    job = job_manager.get_job(job_id)
+    if job is None or job.room_id != room_id:
+        abort(404)
+    if job.status != "finished" or not job.download_name:
+        abort(400)
+    return send_from_directory(
+        str(job.reports_dir),
+        job.download_name,
+        as_attachment=True,
+        download_name=job.download_name,
+    )
 def _extract_zip_safe(zip_path: Path, destination: Path) -> None:
     with zipfile.ZipFile(zip_path) as archive:
         destination.mkdir(parents=True, exist_ok=True)
