@@ -235,8 +235,6 @@ def room_detail(room_id: str):
                 except ValueError:
                     flash("Разрешена загрузка только .zip файлов.", "error")
                 else:
-                    safe_stem = secure_filename(source_path.stem) or "archive"
-                    filename = f"{safe_stem}.zip"
                     destination = uploads_dir / filename
                     file.save(destination)
                     flash("Архив с заданиями загружен.", "success")
