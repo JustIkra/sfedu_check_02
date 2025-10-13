@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Автопроверка{% endblock %}</title>
+    <title>{% block title %}Система автоматизированной экспертизы{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -16,8 +16,8 @@
     <div class="page">
       <header class="topbar">
         <div class="topbar-brand">
-          <a class="brand-link" href="{{ url_for('main.index') }}">Автопроверка</a>
-          <span class="brand-sub">Цифровой сервис проверки учебных материалов</span>
+          <a class="brand-link" href="{{ url_for('main.index') }}">Система автоматизированной экспертизы</a>
+          <span class="brand-sub">Цифровая платформа экспертной оценки учебных материалов</span>
         </div>
         <nav class="topbar-nav">
           <a class="nav-link" href="{{ url_for('main.index') }}">Комнаты</a>
@@ -40,7 +40,7 @@
 
       <footer class="footer">
         <p>
-          Автопроверка · {{ config.get('PROJECT_TAGLINE', 'поддержка наставников и студентов') }}
+          Система автоматизированной экспертизы · {{ config.get('PROJECT_TAGLINE', 'цифровой контур анализа учебных работ') }}
         </p>
       </footer>
     </div>

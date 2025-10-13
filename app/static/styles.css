@@ -333,6 +333,7 @@ input[type="submit"]:focus,
   border-color: var(--accent-hover);
   box-shadow: 0 12px 26px rgba(35, 54, 90, 0.18);
   transform: translateY(-1px);
+  color: #fff;
 }
 
 button:focus-visible,

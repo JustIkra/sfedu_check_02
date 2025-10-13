@@ -19,6 +19,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from werkzeug.utils import secure_filename
 from .default_prompts import DEFAULT_ROOM_PROMPT
 from .models import Room
 from . import db
@@ -56,6 +57,18 @@ def _preserve_upload_name(original_name: str, allowed_suffixes: set[str], fallba
         raise ValueError(suffix)
 
     return candidate
+
+
+def _workspace_slug(filename: str, fallback: str = "archive") -> str:
+    stem = Path(filename or "").stem
+    stem = normalize("NFC", stem.replace("\x00", ""))
+    stem = stem.replace("/", "_").replace("\\", "_").strip()
+
+    if not stem or stem in {".", ".."}:
+        ascii_fallback = secure_filename(Path(filename or "").stem)
+        return ascii_fallback or fallback
+
+    return stem
 
 
 _MOSCOW_TZ = ZoneInfo("Europe/Moscow")
@@ -257,7 +270,7 @@ def start_auto_check(room_id: str):
         flash(message, "info")
         return redirect(url_for("main.room_detail", room_id=room.id))
 
-    workspace_dir = storage / "workspace" / Path(dataset).stem
+    workspace_dir = storage / "workspace" / _workspace_slug(dataset)
     if workspace_dir.exists():
         shutil.rmtree(workspace_dir)
 

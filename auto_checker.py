@@ -780,21 +780,22 @@ async def generate_final_summary(root_dir: str):
     for path, _, files in os.walk(root_dir):
         if path == root_dir:
             continue
-            
+
         # Ищем result.txt файлы
         result_file = os.path.join(path, 'result.txt')
         if os.path.exists(result_file):
             try:
                 async with aiofiles.open(result_file, 'r', encoding='utf-8') as f:
                     content = await f.read()
-                
+
                 # Пытаемся парсить как JSON
+                ai_details_value = "Проверка не выполнялась"
                 try:
                     data = json.loads(content)
                     student_name = data.get('student', os.path.basename(path))
                     result = data.get('result', 'не определено')
                     comment = data.get('comment', 'нет комментария')
-                    
+
                     # Извлекаем полную информацию о детекции AI
                     ai_detection = data.get('ai_detection')
                     if ai_detection:
@@ -802,25 +803,25 @@ async def generate_final_summary(root_dir: str):
                         ai_confidence = ai_detection.get('confidence', 'неизвестно')
                         ai_reasons = ai_detection.get('reasons', [])
                         ai_comment = ai_detection.get('comment', '')
-                        
+
                         if ai_detected:
                             ai_status = f"Да ({ai_confidence})"
                             if ai_comment:
-                                ai_details = ai_comment.strip()
+                                ai_details_value = ai_comment.strip()
                             elif ai_reasons:
-                                ai_details = f"Причины: {'; '.join(ai_reasons)}"
+                                ai_details_value = f"Причины: {'; '.join(ai_reasons)}"
                             else:
-                                ai_details = "Признаки AI-генерации зафиксированы"
+                                ai_details_value = "Признаки AI-генерации зафиксированы"
                         else:
                             ai_status = "Нет"
                             if ai_comment:
-                                ai_details = ai_comment.strip()
+                                ai_details_value = ai_comment.strip()
                             else:
-                                ai_details = "Признаки AI-генерации не обнаружены"
+                                ai_details_value = "Признаки AI-генерации не обнаружены"
                     else:
                         ai_status = "Не проверено"
-                        ai_details = "Проверка не выполнялась"
-                        
+                        ai_details_value = "Проверка не выполнялась"
+
                 except json.JSONDecodeError:
                     # Fallback для старого формата
                     student_name = os.path.basename(path)
@@ -829,27 +830,30 @@ async def generate_final_summary(root_dir: str):
                     comment_match = re.search(r'КОММЕНТАРИЙ:\s*(.+?)(?=\n\n|\Z)', content, re.DOTALL)
                     comment = comment_match.group(1).strip() if comment_match else "нет комментария"
                     ai_status = "Не проверено"
-                    ai_details = "Проверка не выполнялась"
-                
+                    ai_details_value = "Проверка не выполнялась"
+
                 res.append({
                     'Студент': student_name,
                     'Результат': result,
                     'AI-детекция': ai_status,
-                    'AI-детали': ai_details if 'ai_details' in locals() else "Не проверено",
+                    'AI-детали': ai_details_value,
                     'Комментарий': comment,
                     'Путь к файлу': result_file
                 })
-                
+
             except Exception as e:
                 logger.error(f"Ошибка при чтении {result_file}: {e}")
                 res.append({
                     'Студент': os.path.basename(path),
                     'Результат': 'ошибка чтения',
+                    'AI-детекция': 'ошибка',
+                    'AI-детали': 'Не удалось сформировать комментарий',
                     'Комментарий': str(e),
                     'Путь к файлу': result_file
                 })
-    
+
     # Создаем DataFrame и сохраняем
+    res.sort(key=lambda row: str(row.get('Студент', '')).casefold())
     df = pd.DataFrame(res)
     summary_path = os.path.join(root_dir, f'Итоговая_ведомость_{os.path.basename(root_dir)}.xlsx')
     df.to_excel(summary_path, index=False)
