@@ -14,7 +14,7 @@
     const barTrack = progressPanel.querySelector(".progress-bar-track");
     const barFill = progressPanel.querySelector(".progress-bar-fill");
     const messageEl = progressPanel.querySelector(".progress-message");
-    const downloadLink = progressPanel.querySelector(".download-link");
+    const downloadSlot = progressPanel.querySelector("[data-download-slot]");
 
     let pollTimer = null;
     let currentJobId = progressPanel.dataset.activeJob || null;
@@ -30,6 +30,27 @@
         clearInterval(pollTimer);
         pollTimer = null;
       }
+    }
+
+    function resetDownloadArea() {
+      if (!downloadSlot) {
+        return;
+      }
+      downloadSlot.innerHTML = "";
+      downloadSlot.hidden = true;
+    }
+
+    function renderDownloadLink(url, text) {
+      if (!downloadSlot) {
+        return;
+      }
+      const link = document.createElement("a");
+      link.className = "button";
+      link.href = url;
+      link.textContent = text;
+      link.rel = "noopener";
+      downloadSlot.appendChild(link);
+      downloadSlot.hidden = false;
     }
 
     function schedulePolling(jobId) {
@@ -49,7 +70,7 @@
       messageEl.textContent = message;
       countEl.textContent = "";
       setProgressWidth(0);
-      downloadLink.hidden = true;
+      resetDownloadArea();
       submitButton.disabled = false;
       currentJobId = null;
       progressPanel.dataset.activeJob = "";
@@ -129,11 +150,7 @@
         error,
       } = data;
 
-      downloadLink.hidden = true;
-      downloadLink.removeAttribute("href");
-      if (downloadName) {
-        downloadLink.textContent = `Скачать отчёт (${downloadName})`;
-      }
+      resetDownloadArea();
 
       if (typeof completed === "number" && typeof total === "number" && total > 0) {
         countEl.textContent = `${completed} из ${total}`;
@@ -166,8 +183,11 @@
         progressPanel.dataset.activeJob = "";
         const downloadTemplate = progressPanel.dataset.downloadTemplate;
         if (downloadTemplate && resultReady) {
-          downloadLink.href = downloadTemplate.replace("__JOB__", jobId);
-          downloadLink.hidden = false;
+          const downloadUrl = downloadTemplate.replace("__JOB__", jobId);
+          const label = downloadName
+            ? `Скачать отчёт (${downloadName})`
+            : "Скачать отчёт";
+          renderDownloadLink(downloadUrl, label);
         }
         return;
       }
@@ -198,8 +218,7 @@
       messageEl.textContent = "Запуск проверки...";
       countEl.textContent = "";
       setProgressWidth(5);
-      downloadLink.hidden = true;
-      downloadLink.removeAttribute("href");
+      resetDownloadArea();
 
       startJob(dataset);
     });

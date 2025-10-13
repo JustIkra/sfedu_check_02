@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Комната {{ room.name }} · Auto Checker{% endblock %}
+{% block title %}Комната {{ room.name }} · Автопроверка{% endblock %}
 
 {% block content %}
 <section class="card room-overview">
@@ -11,7 +11,7 @@
     {% else %}
       <p class="muted">Укажите краткое описание, чтобы зафиксировать контекст задания.</p>
     {% endif %}
-    <p class="room-overview__timestamp">Комната создана {{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    <p class="room-overview__timestamp">Комната создана {{ format_moscow(room.created_at) }}</p>
   </div>
   <form method="post" class="room-overview__actions">
     <input type="hidden" name="action" value="reset_prompt">
@@ -87,8 +87,8 @@
       <form method="post" enctype="multipart/form-data" class="form-vertical">
         <input type="hidden" name="action" value="upload_template">
         <div class="field">
-          <label for="template-file">Файл шаблона (docx или zip)</label>
-          <input id="template-file" type="file" name="template_file">
+          <label for="template-file">Файл шаблона (только .docx)</label>
+          <input id="template-file" type="file" name="template_file" accept=".docx">
         </div>
         <div class="form-actions">
           <button type="submit">Обновить шаблон</button>
@@ -155,7 +155,7 @@
           <div class="progress-bar-fill"></div>
         </div>
         <p class="progress-message">Панель прогресса появится при запуске проверки.</p>
-        <a class="button download-link" hidden>Скачать отчёт</a>
+        <div class="download-slot" data-download-slot hidden></div>
       </div>
       {% if not available_archives %}
         <p class="empty-state">Для запуска проверки загрузите хотя бы один архив с заданиями.</p>

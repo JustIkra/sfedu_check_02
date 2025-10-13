@@ -2,7 +2,10 @@ import os
 import shutil
 import uuid
 import zipfile
+from datetime import timezone
 from pathlib import Path
+from unicodedata import normalize
+from zoneinfo import ZoneInfo
 
 from flask import (
     Blueprint,
@@ -16,8 +19,6 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from werkzeug.utils import secure_filename
-
 from .default_prompts import DEFAULT_ROOM_PROMPT
 from .models import Room
 from . import db
@@ -38,6 +39,34 @@ def _room_storage(room_id: str) -> Path:
     uploads.mkdir(parents=True, exist_ok=True)
     templates.mkdir(parents=True, exist_ok=True)
     return storage
+
+
+def _preserve_upload_name(original_name: str, allowed_suffixes: set[str], fallback: str) -> str:
+    """Return a safe filename while keeping the original Unicode characters."""
+
+    candidate = Path(original_name or "").name
+    candidate = normalize("NFC", candidate.replace("\x00", ""))
+    candidate = candidate.replace("/", "_").replace("\\", "_").strip()
+
+    if not candidate or candidate in {".", ".."}:
+        candidate = fallback
+
+    suffix = Path(candidate).suffix.lower()
+    if suffix not in allowed_suffixes:
+        raise ValueError(suffix)
+
+    return candidate
+
+
+_MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+
+
+def _format_moscow(dt):
+    if dt is None:
+        return ""
+    aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    localised = aware.astimezone(_MOSCOW_TZ)
+    return localised.strftime("%d.%m.%Y %H:%M")
 
 
 def _list_files(directory: Path):
@@ -82,6 +111,7 @@ def index():
         "index.html",
         rooms=rooms,
         default_room_prompt=DEFAULT_ROOM_PROMPT,
+        format_moscow=_format_moscow,
     )
 
 
@@ -117,8 +147,9 @@ def room_detail(room_id: str):
             if not file or not original_name:
                 flash("Выберите zip-файл для загрузки.", "error")
             else:
-                source_path = Path(original_name)
-                if source_path.suffix.lower() != ".zip":
+                try:
+                    filename = _preserve_upload_name(original_name, {".zip"}, "archive.zip")
+                except ValueError:
                     flash("Разрешена загрузка только .zip файлов.", "error")
                 else:
                     safe_stem = secure_filename(source_path.stem) or "archive"
@@ -134,14 +165,16 @@ def room_detail(room_id: str):
             if not template_file or not original_name:
                 flash("Выберите файл шаблона для загрузки.", "error")
             else:
-                source_path = Path(original_name)
-                suffix = source_path.suffix.lower()
-                if suffix not in {".docx", ".zip"}:
-                    flash("Поддерживаются только файлы .docx или .zip.", "error")
+                try:
+                    filename = _preserve_upload_name(
+                        original_name,
+                        {".docx"},
+                        "template.docx",
+                    )
+                except ValueError:
+                    flash("Поддерживаются только файлы .docx.", "error")
                     return redirect(url_for("main.room_detail", room_id=room.id))
 
-                safe_stem = secure_filename(source_path.stem) or "template"
-                filename = f"{safe_stem}{suffix}"
                 destination = templates_dir / filename
                 template_file.save(destination)
                 room.template_filename = filename
@@ -161,6 +194,7 @@ def room_detail(room_id: str):
         default_room_prompt=DEFAULT_ROOM_PROMPT,
         available_archives=[item["name"] for item in uploads],
         latest_job_id=latest_job.id if latest_job else None,
+        format_moscow=_format_moscow,
     )
 
 
