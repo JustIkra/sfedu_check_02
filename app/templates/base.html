@@ -4,39 +4,46 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Auto Checker{% endblock %}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
-    <div class="app-shell">
-      <header class="header card">
-        <div>
-          <h1><a href="{{ url_for('main.index') }}">Auto Checker</a></h1>
-          <p class="tagline">Проверка, которая звучит по-человечески</p>
+    <div class="page">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <a class="brand-link" href="{{ url_for('main.index') }}">Auto Checker</a>
+          <span class="brand-sub">Официальная платформа оценки и проверки материалов</span>
         </div>
-        <nav>
-          <a href="{{ url_for('main.index') }}">Комнаты</a>
-          <a href="https://github.com" target="_blank" rel="noreferrer">Помощь</a>
+        <nav class="topbar-nav">
+          <a class="nav-link" href="{{ url_for('main.index') }}">Комнаты</a>
         </nav>
       </header>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="messages">
+          <div class="messages" role="status">
             {% for category, message in messages %}
-              <article class="flash {{ category }}">{{ message }}</article>
+              <div class="flash {{ category }}">{{ message }}</div>
             {% endfor %}
           </div>
         {% endif %}
       {% endwith %}
 
-      <main class="content">
+      <main class="main">
         {% block content %}{% endblock %}
       </main>
 
       <footer class="footer">
-        <p>Auto Checker · {{ config.get('PROJECT_TAGLINE', 'поддержка наставников и студентов') }}</p>
+        <p>
+          Auto Checker · {{ config.get('PROJECT_TAGLINE', 'поддержка наставников и студентов') }}
+        </p>
       </footer>
     </div>
+    <script src="{{ url_for('static', filename='progress.js') }}" defer></script>
   </body>
 </html>
