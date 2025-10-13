@@ -95,11 +95,12 @@ def _list_files(directory: Path):
             {
                 "name": filename,
                 "size": (directory / filename).stat().st_size,
+                "mtime": int((directory / filename).stat().st_mtime),
             }
             for filename in os.listdir(directory)
             if (directory / filename).is_file()
         ],
-        key=lambda item: item["name"].lower(),
+        key=lambda item: (-item["mtime"], item["name"].lower()),
     )
 
 
@@ -273,6 +274,20 @@ def room_detail(room_id: str):
                 room.template_filename = filename
                 db.session.commit()
                 flash("Шаблон сохранён для комнаты.", "success")
+            return redirect(url_for("main.room_detail", room_id=room.id))
+
+        if action == "select_template":
+            chosen = (request.form.get("template_choice") or "").strip()
+            if not chosen:
+                flash("Выберите шаблон из списка.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+            candidate = templates_dir / chosen
+            if not candidate.exists() or not candidate.is_file():
+                flash("Выбранный шаблон не найден.", "error")
+                return redirect(url_for("main.room_detail", room_id=room.id))
+            room.template_filename = chosen
+            db.session.commit()
+            flash("Текущий шаблон обновлён.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
     uploads = _list_files(uploads_dir)

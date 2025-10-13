@@ -106,6 +106,24 @@
           <button type="submit">Обновить шаблон</button>
         </div>
       </form>
+      {% if templates %}
+      <form method="post" class="form-vertical">
+        <input type="hidden" name="action" value="select_template">
+        <div class="field">
+          <label for="template-choice">Выбрать из загруженных</label>
+          <select id="template-choice" name="template_choice">
+            {% for template in templates %}
+              <option value="{{ template.name }}" {% if room.template_filename==template.name %}selected{% endif %}>
+                {{ template.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="ghost">Сделать текущим</button>
+        </div>
+      </form>
+      {% endif %}
       {% if room.template_filename %}
         <p class="meta">Текущий шаблон: <strong>{{ room.template_filename }}</strong></p>
       {% endif %}

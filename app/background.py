@@ -93,7 +93,10 @@ class AutoCheckJob:
                 raise FileNotFoundError(summary_file)
 
             self.reports_dir.mkdir(parents=True, exist_ok=True)
-            destination = self.reports_dir / summary_file.name
+            # Генерируем уникальное имя, чтобы не затирать предыдущие отчёты
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            unique_name = f"{summary_file.stem}_{timestamp}_{self.id[:8]}{summary_file.suffix}"
+            destination = self.reports_dir / unique_name
             shutil.copy(summary_file, destination)
 
             with self._lock:
