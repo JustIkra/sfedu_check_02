@@ -98,6 +98,71 @@ def _list_files(directory: Path):
     )
 
 
+class _AutoCheckLaunchError(Exception):
+    """Internal helper exception for auto-check launch failures."""
+
+    def __init__(self, message: str, status: int = 400, job_id: str | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status = status
+        self.job_id = job_id
+
+
+def _launch_auto_check(room: Room, *, dataset: str, storage: Path):
+    uploads_dir = storage / "uploads"
+    templates_dir = storage / "templates"
+
+    dataset = (dataset or "").strip()
+    if not dataset:
+        raise _AutoCheckLaunchError("Выберите архив с заданиями для проверки.")
+
+    archive_path = uploads_dir / dataset
+    if not archive_path.exists():
+        raise _AutoCheckLaunchError("Выбранный архив не найден.", status=404)
+
+    if room.template_filename:
+        template_path = templates_dir / room.template_filename
+    else:
+        template_path = Path(current_app.config["DEFAULT_TEMPLATE_PATH"])
+
+    if not template_path.exists():
+        raise _AutoCheckLaunchError("Файл шаблона для проверки не найден.", status=404)
+
+    active_job = job_manager.active_job_for_room(room.id)
+    if active_job:
+        raise _AutoCheckLaunchError(
+            "Проверка уже выполняется для этой комнаты.", status=409, job_id=active_job.id
+        )
+
+    dataset_name = Path(dataset).name
+    workspace_dir = storage / "workspace" / _workspace_slug(dataset_name)
+    if workspace_dir.exists():
+        shutil.rmtree(workspace_dir)
+
+    try:
+        _extract_zip_safe(archive_path, workspace_dir)
+    except (ValueError, zipfile.BadZipFile) as err:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
+        raise _AutoCheckLaunchError(f"Не удалось распаковать архив: {err}") from err
+
+    reports_dir = storage / "reports"
+
+    try:
+        job = job_manager.create_job(
+            room_id=room.id,
+            workspace_dir=workspace_dir,
+            template_path=template_path,
+            reports_dir=reports_dir,
+            room_prompt=room.prompt or DEFAULT_ROOM_PROMPT,
+        )
+    except ActiveJobError as exc:
+        raise _AutoCheckLaunchError(
+            "Проверка уже выполняется для этой комнаты.", status=409, job_id=exc.job_id
+        ) from exc
+
+    return job
+
+
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -172,6 +237,18 @@ def room_detail(room_id: str):
                     flash("Архив с заданиями загружен.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
+        if action == "start_auto_check":
+            dataset = request.form.get("dataset", "")
+            try:
+                job = _launch_auto_check(room, dataset=dataset, storage=storage)
+            except _AutoCheckLaunchError as err:
+                level = "info" if err.status == 409 else "error"
+                flash(err.message, level)
+                return redirect(url_for("main.room_detail", room_id=room.id))
+
+            flash("Проверка запущена. Прогресс отображается ниже.", "info")
+            return redirect(url_for("main.room_detail", room_id=room.id))
+
         if action == "upload_template":
             template_file = request.files.get("template_file")
             original_name = template_file.filename if template_file else ""
@@ -227,79 +304,22 @@ def download_template(room_id: str, filename: str):
 def start_auto_check(room_id: str):
     room = Room.query.get_or_404(room_id)
     storage = _room_storage(room_id)
-    uploads_dir = storage / "uploads"
-    templates_dir = storage / "templates"
 
     is_async = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     payload = request.get_json(silent=True) if request.is_json else None
     dataset = (payload or {}).get("dataset") if payload else request.form.get("dataset")
-    dataset = (dataset or "").strip()
-
-    if not dataset:
-        message = "Выберите архив с заданиями для проверки."
-        if is_async:
-            return jsonify({"error": message}), 400
-        flash(message, "error")
-        return redirect(url_for("main.room_detail", room_id=room.id))
-
-    archive_path = uploads_dir / dataset
-    if not archive_path.exists():
-        message = "Выбранный архив не найден."
-        if is_async:
-            return jsonify({"error": message}), 404
-        flash(message, "error")
-        return redirect(url_for("main.room_detail", room_id=room.id))
-
-    if room.template_filename:
-        template_path = templates_dir / room.template_filename
-    else:
-        template_path = Path(current_app.config["DEFAULT_TEMPLATE_PATH"])
-
-    if not template_path.exists():
-        message = "Файл шаблона для проверки не найден."
-        if is_async:
-            return jsonify({"error": message}), 404
-        flash(message, "error")
-        return redirect(url_for("main.room_detail", room_id=room.id))
-
-    active_job = job_manager.active_job_for_room(room.id)
-    if active_job:
-        message = "Проверка уже выполняется для этой комнаты."
-        if is_async:
-            return jsonify({"error": message, "job_id": active_job.id}), 409
-        flash(message, "info")
-        return redirect(url_for("main.room_detail", room_id=room.id))
-
-    dataset_name = Path(dataset).name
-    workspace_dir = storage / "workspace" / _workspace_slug(dataset_name)
-    if workspace_dir.exists():
-        shutil.rmtree(workspace_dir)
 
     try:
-        _extract_zip_safe(archive_path, workspace_dir)
-    except (ValueError, zipfile.BadZipFile) as err:
-        shutil.rmtree(workspace_dir, ignore_errors=True)
-        message = f"Не удалось распаковать архив: {err}"
+        job = _launch_auto_check(room, dataset=dataset or "", storage=storage)
+    except _AutoCheckLaunchError as err:
         if is_async:
-            return jsonify({"error": message}), 400
-        flash(message, "error")
-        return redirect(url_for("main.room_detail", room_id=room.id))
+            response = {"error": err.message}
+            if err.job_id:
+                response["job_id"] = err.job_id
+            return jsonify(response), err.status
 
-    reports_dir = storage / "reports"
-
-    try:
-        job = job_manager.create_job(
-            room_id=room.id,
-            workspace_dir=workspace_dir,
-            template_path=template_path,
-            reports_dir=reports_dir,
-            room_prompt=room.prompt or DEFAULT_ROOM_PROMPT,
-        )
-    except ActiveJobError as exc:
-        message = "Проверка уже выполняется для этой комнаты."
-        if is_async:
-            return jsonify({"error": message, "job_id": exc.job_id}), 409
-        flash(message, "info")
+        level = "info" if err.status == 409 else "error"
+        flash(err.message, level)
         return redirect(url_for("main.room_detail", room_id=room.id))
 
     if is_async:
