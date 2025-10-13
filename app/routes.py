@@ -42,6 +42,11 @@ def _room_storage(room_id: str) -> Path:
     return storage
 
 
+def _delete_room_storage(room_id: str) -> None:
+    storage_root = Path(current_app.config["DATA_STORAGE"]) / room_id
+    shutil.rmtree(storage_root, ignore_errors=True)
+
+
 def _preserve_upload_name(original_name: str, allowed_suffixes: set[str], fallback: str) -> str:
     """Return a safe filename while keeping the original Unicode characters."""
 
@@ -350,6 +355,29 @@ def auto_check_download(room_id: str, job_id: str):
         as_attachment=True,
         download_name=job.download_name,
     )
+
+
+@bp.post("/rooms/<room_id>/delete")
+def delete_room(room_id: str):
+    room = Room.query.get_or_404(room_id)
+
+    active_job = job_manager.active_job_for_room(room.id)
+    if active_job:
+        flash(
+            "Невозможно удалить комнату, пока выполняется проверка. Дождитесь завершения задачи.",
+            "error",
+        )
+        return redirect(url_for("main.room_detail", room_id=room.id))
+
+    _delete_room_storage(room.id)
+
+    db.session.delete(room)
+    db.session.commit()
+
+    flash("Комната удалена.", "success")
+    return redirect(url_for("main.index"))
+
+
 def _extract_zip_safe(zip_path: Path, destination: Path) -> None:
     with zipfile.ZipFile(zip_path) as archive:
         destination.mkdir(parents=True, exist_ok=True)

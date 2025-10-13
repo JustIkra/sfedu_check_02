@@ -93,6 +93,14 @@
           {% endif %}
           <div class="room-tile__actions">
             <a class="link-button" href="{{ url_for('main.room_detail', room_id=room.id) }}">Перейти в комнату</a>
+            <form
+              method="post"
+              action="{{ url_for('main.delete_room', room_id=room.id) }}"
+              class="room-tile__delete-form"
+              onsubmit="return confirm('Удалить комнату «{{ room.name }}»? Действие нельзя отменить.');"
+            >
+              <button type="submit" class="ghost danger">Удалить</button>
+            </form>
           </div>
         </article>
       {% endfor %}

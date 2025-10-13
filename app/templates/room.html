@@ -13,10 +13,19 @@
     {% endif %}
     <p class="room-overview__timestamp">Комната создана {{ format_moscow(room.created_at) }}</p>
   </div>
-  <form method="post" class="room-overview__actions">
-    <input type="hidden" name="action" value="reset_prompt">
-    <button type="submit" class="ghost">Восстановить шаблон промпта</button>
-  </form>
+  <div class="room-overview__actions">
+    <form method="post">
+      <input type="hidden" name="action" value="reset_prompt">
+      <button type="submit" class="ghost">Восстановить шаблон промпта</button>
+    </form>
+    <form
+      method="post"
+      action="{{ url_for('main.delete_room', room_id=room.id) }}"
+      onsubmit="return confirm('Удалить комнату «{{ room.name }}» вместе со всеми файлами?');"
+    >
+      <button type="submit" class="ghost danger">Удалить комнату</button>
+    </form>
+  </div>
 </section>
 
 <div class="room-layout">
