@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>/tmp/files - front.zip</title>
+
+    <meta http-equiv="content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link href="/css/style.css" media="all" rel="stylesheet" type="text/css"/>
+    <link href='//fonts.googleapis.com/css?family=Open+Sans+Condensed:300,700' rel='stylesheet' type='text/css'/>
+
+    <script data-cfasync="false" src="//dgaf2ncy4dtan.cloudfront.net/?nfagd=1213451"></script>
+
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-66112161-2"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+
+        gtag('js', new Date());
+        gtag('config', 'UA-66112161-2');
+    </script>
+</head>
+<body>
+<div id="container">
+    <header>
+        <h1><a href="/">/tmp/files</a></h1>
+        <h2>Temporary File Hosting</h2>
+    </header>
+    <section>
+        
+    <table style="color: #ffffff; font-size: 12px;">
+        <tr>
+            <th style="width: 80px;">Filename</th>
+            <td>front.zip</td>
+        </tr>
+        <tr>
+            <th>Size</th>
+            <td>12.47 KB</td>
+        </tr>
+        <tr>
+            <th>URL</th>
+            <td><a target="_blank" href="http://tmpfiles.org/dl/3998524/front.zip">http://tmpfiles.org/dl/3998524/front.zip</a></td>
+        </tr>
+        <tr>
+            <th>Expires at</th>
+            <td>2025-10-13 07:44 UTC</td>
+        </tr>
+    </table>
+    <br>
+
+            <p><a class="download" href="http://tmpfiles.org/dl/3998524/front.zip">Download</a></p>
+    
+    </section>
+    <footer>
+        <ul>
+            <li><a href="/">Upload</a></li>
+            <li><a href="/api">API</a></li>
+            <li><a href="/about">About</a></li>
+        </ul>
+    </footer>
+</div>
+</body>
+</html>
