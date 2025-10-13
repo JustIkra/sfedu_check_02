@@ -1,110 +1,175 @@
 {% extends "base.html" %}
 
-{% block title %}Комната {{ room.name }} · Auto Checker{% endblock %}
+{% block title %}Комната {{ room.name }} · Система автоматизированной экспертизы{% endblock %}
 
 {% block content %}
-<section class="room-header card">
-  <div>
+<section class="card room-overview">
+  <div class="room-overview__info">
     <h2>{{ room.name }}</h2>
     {% if room.description %}
       <p>{{ room.description }}</p>
     {% else %}
-      <p class="muted">Добавьте описание, чтобы подсказать студентам контекст задания.</p>
+      <p class="muted">Укажите краткое описание, чтобы зафиксировать контекст задания.</p>
     {% endif %}
+    <p class="room-overview__timestamp">Комната создана {{ format_moscow(room.created_at) }}</p>
   </div>
-  <form method="post" class="inline-form">
-    <input type="hidden" name="action" value="reset_prompt">
-    <button type="submit" class="ghost">Сбросить промпт к шаблону</button>
-  </form>
-</section>
-
-<section class="card">
-  <h3>Голос вашей комнаты</h3>
-  <p class="muted">Этот текст будет автоматически добавлен к инструкциям авто-проверки.</p>
-  <form method="post" class="prompt-form">
-    <input type="hidden" name="action" value="update_prompt">
-    <label>
-      Человечный промпт
-      <textarea name="prompt" rows="7" required>{{ room.prompt }}</textarea>
-    </label>
-    <button type="submit">Сохранить промпт</button>
-  </form>
-  <details class="default-prompt">
-    <summary>Показать шаблон по умолчанию</summary>
-    <pre>{{ default_room_prompt }}</pre>
-  </details>
-</section>
-
-<section class="cards-grid">
-  <article class="card">
-    <h3>Загрузить задания</h3>
-    <form method="post" enctype="multipart/form-data" class="stacked">
-      <input type="hidden" name="action" value="upload_submission">
-      <label>
-        Архив .zip с работами
-        <input type="file" name="submission_zip" accept=".zip" required>
-      </label>
-      <button type="submit">Сохранить архив</button>
+  <div class="room-overview__actions">
+    <form method="post">
+      <input type="hidden" name="action" value="reset_prompt">
+      <button type="submit" class="ghost">Восстановить шаблон промпта</button>
     </form>
-    {% if uploads %}
-      <ul class="file-list">
-        {% for upload in uploads %}
-          <li>
-            <a href="{{ url_for('main.download_upload', room_id=room.id, filename=upload.name) }}">{{ upload.name }}</a>
-            <span class="meta">{{ (upload.size / 1024)|round(1) }} КБ</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">Пока нет загруженных архивов.</p>
-    {% endif %}
-  </article>
-
-  <article class="card">
-    <h3>Шаблон критериев</h3>
-    <form method="post" enctype="multipart/form-data" class="stacked">
-      <input type="hidden" name="action" value="upload_template">
-      <label>
-        Файл шаблона (docx или zip)
-        <input type="file" name="template_file">
-      </label>
-      <button type="submit">Обновить шаблон</button>
+    <form
+      method="post"
+      action="{{ url_for('main.delete_room', room_id=room.id) }}"
+      onsubmit="return confirm('Удалить комнату «{{ room.name }}» вместе со всеми файлами?');"
+    >
+      <button type="submit" class="ghost danger">Удалить комнату</button>
     </form>
-    {% if room.template_filename %}
-      <p class="meta">Текущий шаблон: <strong>{{ room.template_filename }}</strong></p>
-    {% endif %}
-    {% if templates %}
-      <ul class="file-list">
-        {% for template in templates %}
-          <li>
-            <a href="{{ url_for('main.download_template', room_id=room.id, filename=template.name) }}">{{ template.name }}</a>
-            <span class="meta">{{ (template.size / 1024)|round(1) }} КБ</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">Загрузите файл с критериями, чтобы уточнить оценивание.</p>
-    {% endif %}
-  </article>
+  </div>
 </section>
 
-<section class="card">
-  <h3>Автопроверка</h3>
-  <p class="muted">Выберите архив с заданиями и получите Excel-отчёт с результатами проверки.</p>
-  <form method="post" class="auto-checker-form">
-    <input type="hidden" name="action" value="run_auto_checker">
-    <label>
-      Архив для проверки
-      <select name="dataset" {% if not available_archives %}disabled{% endif %}>
-        {% for filename in available_archives %}
-          <option value="{{ filename }}">{{ filename }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <button type="submit" {% if not available_archives %}disabled{% endif %}>Запустить проверку</button>
-  </form>
-  {% if not available_archives %}
-    <p class="muted">Сначала загрузите архив с заданиями.</p>
-  {% endif %}
-</section>
+<div class="room-layout">
+  <div class="room-layout__main">
+    <section class="card">
+      <div class="section-heading">
+        <h3>Параметры коммуникации</h3>
+        <p class="section-subtitle">
+          Промпт дополняет инструкции модели при запуске проверки и определяет стиль комментариев.
+        </p>
+      </div>
+      <form method="post" class="form-vertical">
+        <input type="hidden" name="action" value="update_prompt">
+        <div class="field">
+          <label for="prompt-text">Текст промпта</label>
+          <textarea id="prompt-text" name="prompt" rows="8" required>{{ room.prompt }}</textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit">Сохранить промпт</button>
+        </div>
+      </form>
+      <details class="default-prompt">
+        <summary>Показать шаблон по умолчанию</summary>
+        <pre>{{ default_room_prompt }}</pre>
+      </details>
+    </section>
+
+    <section class="card upload-card">
+      <div class="section-heading">
+        <h3>Задания для проверки</h3>
+        <p class="section-subtitle">
+          Загружайте zip-архивы с работами студентов. Платформа автоматически подготовит рабочее пространство.
+        </p>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="form-vertical">
+        <input type="hidden" name="action" value="upload_submission">
+        <div class="field">
+          <label for="submission-zip">Архив .zip с работами</label>
+          <input id="submission-zip" type="file" name="submission_zip" accept=".zip" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit">Сохранить архив</button>
+        </div>
+      </form>
+      {% if uploads %}
+        <ul class="file-list">
+          {% for upload in uploads %}
+            <li>
+              <div class="file-list__info">
+                <a href="{{ url_for('main.download_upload', room_id=room.id, filename=upload.name) }}">{{ upload.name }}</a>
+                <span class="meta">{{ (upload.size / 1024)|round(1) }} КБ</span>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty-state">Загрузите архив, чтобы подготовить данные к проверке.</p>
+      {% endif %}
+    </section>
+
+    <section class="card upload-card">
+      <div class="section-heading">
+        <h3>Шаблон критериев</h3>
+        <p class="section-subtitle">
+          Документ с критериями помогает модели придерживаться единого формата оценки.
+        </p>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="form-vertical">
+        <input type="hidden" name="action" value="upload_template">
+        <div class="field">
+          <label for="template-file">Файл шаблона (только .docx)</label>
+          <input id="template-file" type="file" name="template_file" accept=".docx">
+        </div>
+        <div class="form-actions">
+          <button type="submit">Обновить шаблон</button>
+        </div>
+      </form>
+      {% if room.template_filename %}
+        <p class="meta">Текущий шаблон: <strong>{{ room.template_filename }}</strong></p>
+      {% endif %}
+      {% if templates %}
+        <ul class="file-list">
+          {% for template in templates %}
+            <li>
+              <div class="file-list__info">
+                <a href="{{ url_for('main.download_template', room_id=room.id, filename=template.name) }}">{{ template.name }}</a>
+                <span class="meta">{{ (template.size / 1024)|round(1) }} КБ</span>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty-state">Добавьте шаблон, чтобы использовать единые критерии оценивания.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="room-layout__side">
+    <section class="card auto-check-card">
+      <div class="section-heading">
+        <h3>Модуль автоматизированной экспертизы</h3>
+        <p class="section-subtitle">
+          Выберите архив для обработки. Система выполнит анализ и сформирует Excel-отчёт с комментариями.
+        </p>
+      </div>
+      <form
+        method="post"
+        class="auto-checker-form form-vertical"
+        action="{{ url_for('main.start_auto_check', room_id=room.id) }}"
+      >
+        <div class="field">
+          <label for="dataset-select">Архив для проверки</label>
+          <select id="dataset-select" name="dataset" {% if not available_archives %}disabled{% endif %}>
+            {% for filename in available_archives %}
+              <option value="{{ filename }}">{{ filename }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" {% if not available_archives %}disabled{% endif %}>Запустить проверку</button>
+        </div>
+      </form>
+      <div
+        id="auto-check-progress"
+        class="progress-panel"
+        hidden
+        data-status-template="{{ url_for('main.auto_check_status', room_id=room.id, job_id='__JOB__') }}"
+        data-download-template="{{ url_for('main.auto_check_download', room_id=room.id, job_id='__JOB__') }}"
+        data-active-job="{{ latest_job_id or '' }}"
+      >
+        <div class="progress-header">
+          <span class="progress-stage">Ожидание запуска</span>
+          <span class="progress-count"></span>
+        </div>
+        <div class="progress-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <p class="progress-message">Панель прогресса появится при запуске проверки.</p>
+        <div class="download-slot" data-download-slot hidden></div>
+      </div>
+      {% if not available_archives %}
+        <p class="empty-state">Для запуска проверки загрузите хотя бы один архив с заданиями.</p>
+      {% endif %}
+    </section>
+  </aside>
+</div>
 {% endblock %}

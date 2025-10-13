@@ -1,56 +1,117 @@
 {% extends "base.html" %}
 
-{% block title %}Auto Checker · Комнаты{% endblock %}
+{% block title %}Система автоматизированной экспертизы · Комнаты{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <div>
-    <h2>Создайте дружелюбное пространство для проверки</h2>
+<section class="hero-panel card">
+  <div class="hero-panel__content">
+    <span class="badge">Экспертная оценка</span>
+    <h2>Управляйте экспертизой учебных материалов в едином окне</h2>
     <p>
-      Комната объединяет студентов, задания и единый промпт-наставник. Добавьте описание,
-      загрузите архив с работами и получите готовый отчёт в один клик.
+      «Система автоматизированной экспертизы» аккумулирует архивы с заданиями, шаблоны критериев и рабочие промпты.
+      Каждая комната фиксирует исходные данные и размещает итоговые отчёты экспертизы.
     </p>
   </div>
-  <form method="post" class="card">
-    <h3>Новая комната</h3>
-    <label>
-      Название
-      <input type="text" name="name" required placeholder="Например, Группа ИИ-101">
-    </label>
-    <label>
-      Короткое описание
-      <input type="text" name="description" placeholder="Семинар 3 · проверка эссе">
-    </label>
-    <button type="submit">Создать</button>
-  </form>
+  <div class="hero-panel__meta">
+    <div class="stat">
+      <span class="stat__value">{{ rooms|length }}</span>
+      <span class="stat__label">активных комнат</span>
+    </div>
+    <p class="hero-panel__note">
+      Создайте комнату, определите контекст задания и инициируйте обработку — система отобразит ход выполнения в режиме реального времени.
+    </p>
+  </div>
 </section>
 
-<section>
-  <h2>Комнаты и их настроение</h2>
+<section class="grid-two">
+  <form method="post" class="card form-card">
+    <div class="form-card__header">
+      <h3>Новая комната</h3>
+      <p>Укажите наименование и краткое описание процедуры. Эти параметры доступны для редактирования.</p>
+    </div>
+    <div class="field">
+      <label for="room-name">Название</label>
+      <input
+        id="room-name"
+        type="text"
+        name="name"
+        required
+        placeholder="Например, Экзамен по педагогике · поток 1"
+      >
+    </div>
+    <div class="field">
+      <label for="room-description">Краткое описание</label>
+      <input
+        id="room-description"
+        type="text"
+        name="description"
+        placeholder="Факультет, формат, дата проведения"
+      >
+    </div>
+    <button type="submit">Создать комнату</button>
+  </form>
+
+  <article class="card guidance-card">
+    <h3>Порядок работы в «Системе автоматизированной экспертизы»</h3>
+    <ol>
+      <li>Загрузите архив с работами и, при необходимости, документ с критериями оценки.</li>
+      <li>Скорректируйте промпт: обозначьте требования и ожидаемую структуру итоговых материалов.</li>
+      <li>Инициируйте процедуру экспертизы. Панель прогресса отобразит этапы выполнения и предоставит доступ к отчёту.</li>
+    </ol>
+    <p class="guidance-card__note">
+      Система сохраняет историю запусков и размещает сформированные отчёты в пределах соответствующей комнаты.
+    </p>
+  </article>
+</section>
+
+<section class="card room-section">
+  <div class="section-heading">
+    <div>
+      <h2>Активные комнаты</h2>
+      <p class="section-subtitle">
+        Здесь отображаются все пространства для экспертизы. Новые комнаты размещаются в верхней части перечня.
+      </p>
+    </div>
+  </div>
   {% if rooms %}
     <div class="room-grid">
       {% for room in rooms %}
-        <article class="card room-card">
-          <header>
+        <article class="room-tile">
+          <div class="room-tile__header">
             <h3><a href="{{ url_for('main.room_detail', room_id=room.id) }}">{{ room.name }}</a></h3>
-            <p class="meta">{{ room.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
-          </header>
+            <span class="room-tile__timestamp">Создана {{ format_moscow(room.created_at) }}</span>
+          </div>
           {% if room.description %}
-            <p>{{ room.description }}</p>
+            <p class="room-tile__description">{{ room.description }}</p>
           {% else %}
-            <p class="muted">Описание можно добавить в любой момент.</p>
+            <p class="room-tile__description muted">Добавьте описание, чтобы закрепить требования и материалы.</p>
           {% endif %}
+          <div class="room-tile__actions">
+            <a class="link-button" href="{{ url_for('main.room_detail', room_id=room.id) }}">Перейти в комнату</a>
+            <form
+              method="post"
+              action="{{ url_for('main.delete_room', room_id=room.id) }}"
+              class="room-tile__delete-form"
+              onsubmit="return confirm('Удалить комнату «{{ room.name }}»? Действие нельзя отменить.');"
+            >
+              <button type="submit" class="ghost danger">Удалить</button>
+            </form>
+          </div>
         </article>
       {% endfor %}
     </div>
   {% else %}
-    <p class="muted">Комнаты пока не созданы. Начните с формы выше, чтобы открыть первую.</p>
+    <p class="empty-state">Комнаты ещё не созданы. Используйте форму выше, чтобы инициировать первую процедуру экспертизы.</p>
   {% endif %}
 </section>
 
-<section class="prompt-preview card">
-  <h3>Промпт по умолчанию</h3>
-  <p class="muted">Он используется в каждой новой комнате и добавляется к инструкциям автопроверки.</p>
+<section class="card prompt-card">
+  <div class="section-heading">
+    <h3>Промпт по умолчанию</h3>
+    <p class="section-subtitle">
+      Текст применяется при создании новой комнаты и служит отправной точкой для инструкций модели.
+    </p>
+  </div>
   <pre>{{ default_room_prompt }}</pre>
 </section>
 {% endblock %}
