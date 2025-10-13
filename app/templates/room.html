@@ -176,6 +176,30 @@
         <p class="empty-state">Для запуска проверки загрузите хотя бы один архив с заданиями.</p>
       {% endif %}
     </section>
+
+    {% if reports %}
+    <section class="card">
+      <div class="section-heading">
+        <h3>Отчёты этой комнаты</h3>
+        <p class="section-subtitle">Готовые XLSX-файлы, сформированные по результатам запусков.</p>
+      </div>
+      <ul class="file-list file-list--reports">
+        {% for report in reports %}
+          <li>
+            <a
+              class="file-row"
+              href="{{ url_for('main.download_report', room_id=room.id, filename=report.name) }}"
+              title="{{ report.name }}"
+              download
+            >
+              <span class="file-row__name">{{ report.name }}</span>
+              <span class="file-row__meta">{{ (report.size / 1024)|round(1) }} КБ</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
   </aside>
 </div>
 {% endblock %}

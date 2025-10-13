@@ -550,6 +550,11 @@ input[type="submit"]:disabled {
   align-content: start;
 }
 
+/* Предотвращаем наезд карточек: добавим явные внешние отступы между секциями */
+.room-layout__side > .card + .card {
+  margin-top: 0.5rem;
+}
+
 .form-vertical {
   display: grid;
   gap: 1rem;
@@ -576,12 +581,73 @@ input[type="submit"]:disabled {
   background: rgba(52, 84, 154, 0.05);
 }
 
+.file-list--reports li {
+  padding: 0; /* управление отступами на ссылке */
+  border-style: solid;
+}
+
 .file-list__info {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.95rem;
+}
+
+.file-list__info a {
+  min-width: 0; /* enable ellipsis in grid */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* Кликабельная строка для отчётов */
+.file-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.file-row:hover,
+.file-row:focus {
+  background: var(--surface);
+  box-shadow: 0 6px 16px rgba(35, 54, 90, 0.08);
+  border-radius: 12px;
+}
+
+.file-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.file-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row__meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .file-list__info {
+    grid-template-columns: 1fr; /* stack on small screens */
+    gap: 0.4rem;
+  }
+  .file-list__info .meta {
+    justify-self: start;
+  }
 }
 
 .meta {
@@ -590,8 +656,8 @@ input[type="submit"]:disabled {
 }
 
 .auto-check-card {
-  position: sticky;
-  top: 2rem;
+  position: static;
+  top: auto;
 }
 
 .progress-panel {
@@ -645,6 +711,14 @@ input[type="submit"]:disabled {
 .download-slot {
   display: flex;
   gap: 0.75rem;
+}
+
+.download-slot .button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .muted {

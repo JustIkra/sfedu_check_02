@@ -90,7 +90,7 @@
       downloadSlot.hidden = true;
     }
 
-    function renderDownloadLink(url, text) {
+    function renderDownloadLink(url, text, title) {
       if (!downloadSlot) {
         return;
       }
@@ -98,6 +98,7 @@
       link.className = "button";
       link.href = url;
       link.textContent = text;
+      if (title) link.title = title;
       link.rel = "noopener";
       downloadSlot.appendChild(link);
       downloadSlot.hidden = false;
@@ -234,10 +235,18 @@
         const downloadTemplate = progressPanel.dataset.downloadTemplate;
         if (downloadTemplate && resultReady) {
           const downloadUrl = downloadTemplate.replace("__JOB__", jobId);
-          const label = downloadName
+          const fullLabel = downloadName
             ? `Скачать отчёт (${downloadName})`
             : "Скачать отчёт";
-          renderDownloadLink(downloadUrl, label);
+          const truncated = (() => {
+            const maxLen = 70; // keep button compact
+            const input = fullLabel;
+            if (!input || input.length <= maxLen) return input;
+            const head = input.slice(0, Math.ceil(maxLen * 0.6));
+            const tail = input.slice(-Math.floor(maxLen * 0.3));
+            return `${head}…${tail}`;
+          })();
+          renderDownloadLink(downloadUrl, truncated, fullLabel);
         }
         return;
       }

@@ -277,6 +277,7 @@ def room_detail(room_id: str):
 
     uploads = _list_files(uploads_dir)
     templates = _list_files(templates_dir)
+    reports = _list_files(storage / "reports")
     latest_job = job_manager.latest_job_for_room(room.id)
 
     return render_template(
@@ -288,6 +289,7 @@ def room_detail(room_id: str):
         available_archives=[item["name"] for item in uploads],
         latest_job_id=latest_job.id if latest_job else None,
         format_moscow=_format_moscow,
+        reports=reports,
     )
 
 
@@ -301,6 +303,12 @@ def download_upload(room_id: str, filename: str):
 def download_template(room_id: str, filename: str):
     storage = _room_storage(room_id)
     return send_from_directory(storage / "templates", filename, as_attachment=True)
+
+
+@bp.route("/rooms/<room_id>/reports/<path:filename>")
+def download_report(room_id: str, filename: str):
+    storage = _room_storage(room_id)
+    return send_from_directory(storage / "reports", filename, as_attachment=True)
 
 
 @bp.post("/rooms/<room_id>/auto-check")
