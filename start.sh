@@ -10,11 +10,17 @@ PROXY_USER="${PROXY_USER:-proxy_user}"
 PROXY_PASS="${PROXY_PASS:-jJZooP0vNdYbqdQ9}"
 
 if [ -n "$PROXY_HOST" ] && [ -n "$PROXY_PORT" ]; then
-  export http_proxy="http://${PROXY_USER}:${PROXY_PASS}@${PROXY_HOST}:${PROXY_PORT}"
-  export https_proxy="${http_proxy}"
-  export HTTP_PROXY="$http_proxy"
-  export HTTPS_PROXY="$https_proxy"
-  echo "Используется прокси ${PROXY_HOST}:${PROXY_PORT}"
+  if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    proxy_auth="${PROXY_USER}:${PROXY_PASS}@"
+  else
+    proxy_auth=""
+  fi
+  proxy_url="socks5h://${proxy_auth}${PROXY_HOST}:${PROXY_PORT}"
+  export http_proxy="$proxy_url"
+  export https_proxy="$proxy_url"
+  export HTTP_PROXY="$proxy_url"
+  export HTTPS_PROXY="$proxy_url"
+  echo "Используется SOCKS5 прокси ${PROXY_HOST}:${PROXY_PORT}"
 fi
 
 cleanup() {
