@@ -44,6 +44,20 @@
         </p>
       </footer>
     </div>
+    <div id="app-modal" class="modal-overlay" hidden>
+      <div class="modal">
+        <div class="modal__header">
+          <span class="modal__title">Подтверждение действия</span>
+        </div>
+        <div class="modal__body">
+          <p class="modal__message">Вы уверены?</p>
+        </div>
+        <div class="modal__footer">
+          <button type="button" class="ghost modal__cancel">Отмена</button>
+          <button type="button" class="button danger modal__ok">OK</button>
+        </div>
+      </div>
+    </div>
     <script src="{{ url_for('static', filename='progress.js') }}" defer></script>
   </body>
 </html>

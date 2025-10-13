@@ -1,5 +1,55 @@
 (function () {
   document.addEventListener("DOMContentLoaded", () => {
+    // Modal confirm
+    const modalOverlay = document.getElementById("app-modal");
+    const modalMessage = modalOverlay ? modalOverlay.querySelector(".modal__message") : null;
+    const modalOk = modalOverlay ? modalOverlay.querySelector(".modal__ok") : null;
+    const modalCancel = modalOverlay ? modalOverlay.querySelector(".modal__cancel") : null;
+    let pendingForm = null;
+
+    function openConfirm(message, form) {
+      if (!modalOverlay || !modalMessage || !modalOk || !modalCancel) {
+        return window.confirm(message);
+      }
+      modalMessage.textContent = message || "Подтвердите действие";
+      modalOverlay.hidden = false;
+      pendingForm = form || null;
+    }
+
+    function closeConfirm() {
+      if (modalOverlay) {
+        modalOverlay.hidden = true;
+      }
+      pendingForm = null;
+    }
+
+    if (modalOk && modalCancel) {
+      modalOk.addEventListener("click", () => {
+        if (pendingForm) {
+          const form = pendingForm;
+          pendingForm = null;
+          modalOverlay.hidden = true;
+          form.submit();
+        } else {
+          closeConfirm();
+        }
+      });
+      modalCancel.addEventListener("click", () => closeConfirm());
+      if (modalOverlay) {
+        modalOverlay.addEventListener("click", (e) => {
+          if (e.target === modalOverlay) closeConfirm();
+        });
+      }
+    }
+
+    document.querySelectorAll("form.js-confirm").forEach((form) => {
+      form.addEventListener("submit", (e) => {
+        const message = form.dataset.confirmMessage || "Подтвердить действие?";
+        e.preventDefault();
+        openConfirm(message, form);
+      });
+    });
+
     const form = document.querySelector(".auto-checker-form");
     const progressPanel = document.getElementById("auto-check-progress");
 

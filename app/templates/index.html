@@ -96,8 +96,8 @@
             <form
               method="post"
               action="{{ url_for('main.delete_room', room_id=room.id) }}"
-              class="room-tile__delete-form"
-              onsubmit="return confirm('Удалить комнату «{{ room.name }}»? Действие нельзя отменить.');"
+              class="room-tile__delete-form js-confirm"
+              data-confirm-message="Удалить комнату «{{ room.name }}»? Действие нельзя отменить."
             >
               <button type="submit" class="ghost danger">Удалить</button>
             </form>
