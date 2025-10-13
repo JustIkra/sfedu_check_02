@@ -270,7 +270,8 @@ def start_auto_check(room_id: str):
         flash(message, "info")
         return redirect(url_for("main.room_detail", room_id=room.id))
 
-    workspace_dir = storage / "workspace" / _workspace_slug(dataset)
+    dataset_name = Path(dataset).name
+    workspace_dir = storage / "workspace" / _workspace_slug(dataset_name)
     if workspace_dir.exists():
         shutil.rmtree(workspace_dir)
 
