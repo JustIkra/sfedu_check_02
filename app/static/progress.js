@@ -1,5 +1,52 @@
 (function () {
   document.addEventListener("DOMContentLoaded", () => {
+    // Equalize heights of first row cards in room layout
+    (function equalizeRows() {
+      const leftCards = Array.from(document.querySelectorAll(".room-layout__main > .card"));
+      const rightCards = Array.from(document.querySelectorAll(".room-layout__side > .card"));
+      if (!leftCards.length || !rightCards.length) return;
+
+      const pairCount = Math.min(leftCards.length, rightCards.length);
+      const observers = [];
+
+      function applyPair(i) {
+        const l = leftCards[i];
+        const r = rightCards[i];
+        if (!l || !r) return;
+        // reset before measuring to avoid stale constraints
+        l.style.height = r.style.height = "";
+        if (window.matchMedia("(min-width: 1024px)").matches) {
+          // Use rAF to ensure layout is up-to-date before measuring
+          requestAnimationFrame(() => {
+            const h = Math.max(l.offsetHeight, r.offsetHeight);
+            l.style.height = r.style.height = h + "px";
+          });
+        }
+      }
+
+      function applyAll() {
+        for (let i = 0; i < pairCount; i += 1) applyPair(i);
+      }
+
+      for (let i = 0; i < pairCount; i += 1) {
+        const l = leftCards[i];
+        const r = rightCards[i];
+        const ro = new ResizeObserver(() => applyPair(i));
+        ro.observe(l);
+        ro.observe(r);
+        observers.push(ro);
+      }
+
+      window.addEventListener("resize", () => {
+        // On breakpoint down, release heights immediately
+        if (!window.matchMedia("(min-width: 1024px)").matches) {
+          leftCards.forEach((el) => (el.style.height = ""));
+          rightCards.forEach((el) => (el.style.height = ""));
+        }
+        applyAll();
+      });
+      applyAll();
+    })();
     // Modal confirm
     const modalOverlay = document.getElementById("app-modal");
     const modalMessage = modalOverlay ? modalOverlay.querySelector(".modal__message") : null;

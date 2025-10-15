@@ -1,3 +1,10 @@
+.room-layout__main > .card:first-child textarea {
+  min-height: 280px; /* фиксируем базовую высоту ввода, чтобы сетка не прыгала */
+}
+
+.progress-panel {
+  min-height: 132px; /* чтобы при коротких сообщениях не схлопывалось */
+}
 :root {
   --page-bg: #f4f6fb;
   --surface: #ffffff;
@@ -298,7 +305,7 @@ textarea:focus {
 }
 
 textarea {
-  resize: vertical;
+  resize: none; /* запрещаем ручное изменение размера */
 }
 
 button,
@@ -541,12 +548,14 @@ input[type="submit"]:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: 1.75rem;
+  align-items: start;
 }
 
 .room-layout__main,
 .room-layout__side {
   display: grid;
   gap: 1.75rem;
+  grid-auto-rows: minmax(280px, auto); /* базовая высота строк для визуальной группировки */
   align-content: start;
 }
 
@@ -554,6 +563,8 @@ input[type="submit"]:disabled {
 .room-layout__side > .card + .card {
   margin-top: 0.5rem;
 }
+
+/* Высоту первого ряда теперь синхронизируем скриптом; фикс не нужен */
 
 .form-vertical {
   display: grid;
@@ -658,6 +669,12 @@ input[type="submit"]:disabled {
 .auto-check-card {
   position: static;
   top: auto;
+}
+
+/* Карточки одной строки растягиваются до одинаковой высоты */
+.room-layout__main > .card,
+.room-layout__side > .card {
+  height: 100%;
 }
 
 .progress-panel {
