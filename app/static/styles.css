@@ -189,6 +189,8 @@ a:focus-visible {
   border: 1px solid var(--border);
   padding: 2rem;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+  overflow-x: hidden; /* скрываем только горизонтальное переполнение */
 }
 
 .badge {
@@ -271,6 +273,8 @@ a:focus-visible {
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 1rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .field label {
@@ -283,12 +287,16 @@ input[type="file"],
 select,
 textarea {
   width: 100%;
+  max-width: 100%;
   border-radius: 12px;
   border: 1px solid var(--border-strong);
   padding: 0.75rem 1rem;
   font-size: 1rem;
   background: var(--surface-subtle);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 input[type="file"] {
@@ -306,6 +314,18 @@ textarea:focus {
 
 textarea {
   resize: none; /* запрещаем ручное изменение размера */
+  white-space: pre-wrap; /* переносим текст на новые строки */
+  overflow: visible; /* показываем весь текст */
+  text-overflow: clip; /* не обрезаем текст */
+  word-wrap: break-word; /* разрываем длинные слова */
+}
+
+/* Предотвращаем расширение select и option при длинных названиях файлов */
+select option {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 button,
@@ -508,9 +528,13 @@ input[type="submit"]:disabled {
   border-radius: 18px;
   border: 1px solid var(--border);
   font-family: "JetBrains Mono", "Fira Mono", monospace;
-  white-space: pre-wrap;
+  white-space: pre-wrap; /* переносим текст, сохраняя пробелы */
+  word-wrap: break-word; /* разрываем длинные слова */
+  overflow-wrap: break-word; /* современный аналог word-wrap */
   line-height: 1.5;
   font-size: 0.95rem;
+  max-width: 100%;
+  overflow-x: auto; /* добавляем скролл если текст все равно слишком длинный */
 }
 
 .room-overview {
@@ -549,6 +573,9 @@ input[type="submit"]:disabled {
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: 1.75rem;
   align-items: start;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .room-layout__main,
@@ -557,6 +584,8 @@ input[type="submit"]:disabled {
   gap: 1.75rem;
   grid-auto-rows: minmax(280px, auto); /* базовая высота строк для визуальной группировки */
   align-content: start;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* Предотвращаем наезд карточек: добавим явные внешние отступы между секциями */
@@ -569,6 +598,8 @@ input[type="submit"]:disabled {
 .form-vertical {
   display: grid;
   gap: 1rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .form-actions {
@@ -669,6 +700,13 @@ input[type="submit"]:disabled {
 .auto-check-card {
   position: static;
   top: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.auto-check-card .field {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* Карточки одной строки растягиваются до одинаковой высоты */

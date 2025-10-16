@@ -29,6 +29,7 @@ class AutoCheckJob:
     template_path: Path
     reports_dir: Path
     room_prompt: str
+    ai_check_enabled: bool = field(default=True)
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     status: str = field(default="queued")
     stage: str = field(default="queued")
@@ -82,6 +83,7 @@ class AutoCheckJob:
                 root_dir=str(self.workspace_dir),
                 template_path=str(self.template_path),
                 room_prompt=self.room_prompt,
+                ai_check_enabled=self.ai_check_enabled,
                 progress_callback=self._handle_progress_update,
             )
 
@@ -149,6 +151,7 @@ class AutoCheckJobManager:
         template_path: Path,
         reports_dir: Path,
         room_prompt: str,
+        ai_check_enabled: bool = True,
     ) -> AutoCheckJob:
         with self._lock:
             for job in self._jobs.values():
@@ -161,6 +164,7 @@ class AutoCheckJobManager:
                 template_path=template_path,
                 reports_dir=reports_dir,
                 room_prompt=room_prompt,
+                ai_check_enabled=ai_check_enabled,
             )
             self._jobs[job.id] = job
 

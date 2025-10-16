@@ -160,6 +160,7 @@ def _launch_auto_check(room: Room, *, dataset: str, storage: Path):
             template_path=template_path,
             reports_dir=reports_dir,
             room_prompt=room.prompt or DEFAULT_ROOM_PROMPT,
+            ai_check_enabled=room.ai_check_enabled,
         )
     except ActiveJobError as exc:
         raise _AutoCheckLaunchError(
@@ -184,6 +185,7 @@ def index():
                 description=description,
                 check_prompt=DEFAULT_ROOM_PROMPT,
                 task_prompt=DEFAULT_ROOM_PROMPT,
+                ai_check_enabled=True,
             )
             db.session.add(room)
             db.session.commit()
@@ -223,6 +225,14 @@ def room_detail(room_id: str):
             room.prompt = DEFAULT_ROOM_PROMPT
             db.session.commit()
             flash("Промпт комнаты сброшен к шаблону.", "info")
+            return redirect(url_for("main.room_detail", room_id=room.id))
+
+        if action == "toggle_ai_check":
+            ai_check_enabled = request.form.get("ai_check_enabled") == "on"
+            room.ai_check_enabled = ai_check_enabled
+            db.session.commit()
+            status_text = "включена" if ai_check_enabled else "отключена"
+            flash(f"AI проверка {status_text}.", "success")
             return redirect(url_for("main.room_detail", room_id=room.id))
 
         if action == "upload_submission":

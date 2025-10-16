@@ -13,6 +13,7 @@ class Room(db.Model):
     check_prompt: str = db.Column(db.Text, nullable=False)
     task_prompt: str = db.Column(db.Text, nullable=False)
     template_filename: Optional[str] = db.Column(db.String(255), nullable=True)
+    ai_check_enabled: bool = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

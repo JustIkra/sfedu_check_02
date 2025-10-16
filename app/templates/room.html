@@ -155,6 +155,30 @@
           Выберите архив для обработки. Система выполнит анализ и сформирует Excel-отчёт с комментариями.
         </p>
       </div>
+      
+      <form method="post" class="form-vertical" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e0e0e0;">
+        <input type="hidden" name="action" value="toggle_ai_check">
+        <div class="field">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input 
+              type="checkbox" 
+              name="ai_check_enabled" 
+              {% if room.ai_check_enabled %}checked{% endif %}
+              onchange="this.form.submit()"
+              style="margin-right: 0.5rem;"
+            >
+            <span><strong>Включить проверку на AI-генерацию</strong></span>
+          </label>
+          <p class="meta" style="margin-top: 0.5rem; margin-left: 1.5rem;">
+            {% if room.ai_check_enabled %}
+              Работы проверяются на признаки создания с помощью ИИ
+            {% else %}
+              Проверяется только качество содержания, логика и оформление
+            {% endif %}
+          </p>
+        </div>
+      </form>
+      
       <form
         method="post"
         class="auto-checker-form form-vertical"
