@@ -882,6 +882,7 @@ async def generate_final_summary(root_dir: str):
     Формирует итоговую ведомость в корневой директории.
     """
     res = []
+    dedup_records = {}
     
     for path, _, files in os.walk(root_dir):
         if path == root_dir:
@@ -901,6 +902,7 @@ async def generate_final_summary(root_dir: str):
                     student_name = data.get('student', os.path.basename(path))
                     result = data.get('result', 'не определено')
                     comment = data.get('comment', 'нет комментария')
+                    date_str = data.get('date')
 
                     # Извлекаем полную информацию о детекции AI
                     ai_detection = data.get('ai_detection')
@@ -937,30 +939,104 @@ async def generate_final_summary(root_dir: str):
                     comment = comment_match.group(1).strip() if comment_match else "нет комментария"
                     ai_status = "Не проверено"
                     ai_details_value = "Проверка не выполнялась"
+                    date_str = None
 
-                res.append({
-                    'Студент': student_name,
+                # Служебные поля для дедупликации (не попадут в итоговый Excel)
+                # 1) Попытка извлечь ID из имени студента/каталога
+                raw_student = student_name or os.path.basename(path)
+                folder_name = os.path.basename(path)
+                student_id = None
+                # Основной шаблон Moodle: ФИО_ИД_assignsubmission_<тип>
+                m = re.match(r'^(.+?)_(\d+)_assignsubmission_(\w+)$', raw_student)
+                if m:
+                    student_id = m.group(2)
+                else:
+                    # Альтернативные шаблоны ID в тексте
+                    m = re.search(r'ID[:=]\s*(\w{3,})', raw_student)
+                    if not m:
+                        m = re.search(r'\[(?:id|ID)=(\w+)\]', raw_student)
+                    if m:
+                        student_id = m.group(1)
+                if not student_id:
+                    # Попытка из имени папки
+                    m = re.match(r'^(.+?)_(\d+)_assignsubmission_(\w+)$', folder_name)
+                    if m:
+                        student_id = m.group(2)
+
+                # Нормализация ФИО для ключа
+                try:
+                    import unicodedata
+                    normalized_student = unicodedata.normalize('NFC', str(raw_student).strip()).casefold()
+                except Exception:
+                    normalized_student = str(raw_student).strip().lower()
+
+                # Парс даты/mtime как fallback
+                from datetime import datetime
+                parsed_date = None
+                if date_str:
+                    try:
+                        parsed_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        parsed_date = None
+                try:
+                    mtime = os.path.getmtime(result_file)
+                except Exception:
+                    mtime = 0.0
+
+                # Ключ дедупликации
+                key = student_id if student_id else normalized_student
+
+                # Сохраняем запись с техническими полями
+                record = {
+                    'Студент': raw_student,
                     'Результат': result,
                     'AI-детекция': ai_status,
                     'AI-детали': ai_details_value,
                     'Комментарий': comment,
-                    'Путь к файлу': result_file
-                })
+                    'Путь к файлу': result_file,
+                    '__student_id__': student_id,
+                    '__normalized_student__': normalized_student,
+                    '__parsed_date__': parsed_date,
+                    '__mtime__': mtime,
+                }
+
+                # Выбор лучшей записи по приоритетам:
+                # 1) зачтено предпочитается незачтено
+                # 2) более поздняя дата (date, иначе mtime)
+                # 3) при равенстве дат — более длинный комментарий
+                def record_priority(rec):
+                    is_pass = 1 if str(rec.get('Результат', '')).strip().lower() == 'зачтено' else 0
+                    dt = rec.get('__parsed_date__')
+                    ts = dt.timestamp() if dt else rec.get('__mtime__', 0.0)
+                    comment_len = len(str(rec.get('Комментарий', '')))
+                    return (is_pass, ts, comment_len)
+
+                best = dedup_records.get(key)
+                if best is None or record_priority(record) > record_priority(best):
+                    dedup_records[key] = record
 
             except Exception as e:
                 logger.error(f"Ошибка при чтении {result_file}: {e}")
-                res.append({
+                # В ошибочных случаях всё равно добавим запись без дедупликации под уникальным ключом
+                error_key = f"__error__::{os.path.basename(path)}::{time.time()}"
+                dedup_records[error_key] = {
                     'Студент': os.path.basename(path),
                     'Результат': 'ошибка чтения',
                     'AI-детекция': 'ошибка',
                     'AI-детали': 'Не удалось сформировать комментарий',
                     'Комментарий': str(e),
-                    'Путь к файлу': result_file
-                })
+                    'Путь к файлу': result_file,
+                    '__student_id__': None,
+                    '__normalized_student__': os.path.basename(path).lower(),
+                    '__parsed_date__': None,
+                    '__mtime__': 0.0,
+                }
 
-    # Создаем DataFrame и сохраняем
-    res.sort(key=lambda row: str(row.get('Студент', '')).casefold())
-    df = pd.DataFrame(res)
+    # Финализация: формируем список записей и оставляем только 6 колонок
+    final_records = list(dedup_records.values())
+    final_records.sort(key=lambda row: str(row.get('Студент', '')).casefold())
+    columns = ['Студент', 'Результат', 'AI-детекция', 'AI-детали', 'Комментарий', 'Путь к файлу']
+    df = pd.DataFrame([{k: rec.get(k) for k in columns} for rec in final_records], columns=columns)
     summary_path = os.path.join(root_dir, f'Итоговая_ведомость_{os.path.basename(root_dir)}.xlsx')
     df.to_excel(summary_path, index=False)
     

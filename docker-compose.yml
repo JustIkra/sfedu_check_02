@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   web:
+    #  container_name: auto-checker-web-dev
     build: .
     ports:
       - "9003:9003"
