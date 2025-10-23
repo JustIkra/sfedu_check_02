@@ -312,6 +312,42 @@ async def extract_text_from_word(word_path: str) -> str:
         return ""
 
 
+async def extract_text_from_pdf(pdf_path: str) -> str:
+    """Извлекает текст из PDF документа.
+
+    Порядок попыток:
+    1) PyPDF2 — лёгкий и без внешних бинарников;
+    2) Фолбэк: двоичное чтение с грубой очисткой (на случай отсутствия библиотек).
+    """
+    try:
+        try:
+            import PyPDF2  # noqa: WPS433
+            text_parts: list[str] = []
+            with open(pdf_path, 'rb') as fh:
+                reader = PyPDF2.PdfReader(fh)
+                for page in reader.pages:
+                    try:
+                        page_text = page.extract_text() or ""
+                    except Exception:
+                        page_text = ""
+                    if page_text.strip():
+                        text_parts.append(page_text)
+            text = "\n".join(text_parts).strip()
+            return text
+        except ImportError:
+            logger.warning("PyPDF2 не установлен, используется базовое извлечение PDF")
+
+        # Фолбэк: читаем как текст с доп. очисткой (качество ниже)
+        async with aiofiles.open(pdf_path, 'rb') as f:
+            content = await f.read()
+        text = content.decode('utf-8', errors='ignore')
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении текста из PDF {pdf_path}: {e}")
+        return ""
+
+
 async def answer(client: GeminiClient, text: str, prompt: str = '', limit: int = 60,
                  models: list = None) -> str | None:
     """
@@ -679,19 +715,30 @@ async def process_submission(
     file_type = json_obj['file_type']
     
     try:
-        # Проверка на существующий result.txt
-        result_file = os.path.join(user_dir, 'result.txt')
-        if os.path.exists(result_file):
-            logger.info(f"✅ Найден существующий result.txt в {user_dir}. Пропуск обработки.")
-            async with aiofiles.open(result_file, 'r', encoding='utf-8') as f:
-                content = await f.read()
-                return {"result": "уже обработано", "comment": content}
+        # Готовим директорию для результатов по каждому файлу
+        results_dir = os.path.join(user_dir, 'results')
+        os.makedirs(results_dir, exist_ok=True)
+        base_name = os.path.basename(file_path)
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-\.\u0400-\u04FF]+', '_', base_name)
+        per_file_result = os.path.join(results_dir, f"{safe_name}.json")
+
+        # Если уже есть результат для конкретного файла — пропустим переобработку
+        if os.path.exists(per_file_result):
+            logger.info(f"✅ Уже обработан файл: {base_name}")
+            async with aiofiles.open(per_file_result, 'r', encoding='utf-8') as f:
+                try:
+                    data = json.loads(await f.read())
+                except Exception:
+                    data = None
+            return data
         
         # Извлечение текста в зависимости от типа файла
         if file_type == 'html':
             student_text = await extract_text_from_html(file_path)
         elif file_type in ['docx', 'doc']:
             student_text = await extract_text_from_word(file_path)
+        elif file_type == 'pdf':
+            student_text = await extract_text_from_pdf(file_path)
         else:
             logger.error(f"Неподдерживаемый тип файла: {file_type}")
             return None
@@ -719,14 +766,22 @@ async def process_submission(
                 ai_confidence = ai_check.get('confidence')
         
         # Получение базовой оценки от AI с учетом уверенности детектора
-        evaluation = await get_binary_evaluation(
-            client,
-            student_text,
-            template_text,
-            room_prompt=room_prompt,
-            ai_confidence=ai_confidence,
-            ai_check_enabled=ai_check_enabled,
-        )
+        # Поддержка офлайн-тестирования: если DUMMY_EVAL=true — используем детерминированную оценку
+        if os.environ.get('DUMMY_EVAL', '').lower() in {'1', 'true', 'yes'}:
+            clean_len = len(re.sub(r'\s+', ' ', student_text).strip())
+            evaluation = {
+                "result": "зачтено" if clean_len >= 400 else "не зачтено",
+                "comment": f"Режим DUMMY_EVAL: длина текста {clean_len} символов. Порог 400."
+            }
+        else:
+            evaluation = await get_binary_evaluation(
+                client,
+                student_text,
+                template_text,
+                room_prompt=room_prompt,
+                ai_confidence=ai_confidence,
+                ai_check_enabled=ai_check_enabled,
+            )
         
         if not evaluation:
             logger.error(f"Не удалось получить оценку для {user_dir}")
@@ -746,7 +801,7 @@ async def process_submission(
                 # Мягкое предупреждение — не влияет на итог
                 evaluation['comment'] = evaluation.get('comment', '') + "\n\nЗАМЕЧАНИЕ: возможные признаки AI-генерации (уверенность не высокая)."
         
-        # Сохранение результата в result.txt в JSON формате
+        # Сохранение результата в per-file JSON
         result_data = {
             "student": os.path.basename(user_dir),
             "file": os.path.basename(file_path),
@@ -756,20 +811,18 @@ async def process_submission(
             "ai_detection": ai_check if ai_check else None,
             "checked_by": "SFEDU"
         }
-        
+
         result_content = json.dumps(result_data, ensure_ascii=False, indent=2)
-        
-        async with aiofiles.open(result_file, 'w', encoding='utf-8') as f:
+        async with aiofiles.open(per_file_result, 'w', encoding='utf-8') as f:
             await f.write(result_content)
-        
-        logger.info(f"Результат сохранен в {result_file}")
-        
+        logger.info(f"Результат сохранен: {per_file_result}")
+
         return {
             "student": os.path.basename(user_dir),
             "file": os.path.basename(file_path),
             "result": evaluation['result'],
             "comment": evaluation['comment'],
-            "result_file": result_file
+            "result_file": per_file_result
         }
         
     except Exception as e:
@@ -801,6 +854,12 @@ async def find_all_submissions(root_dir: str) -> list:
                     'user': path,
                     'file_path': os.path.join(path, file),
                     'file_type': 'html'
+                })
+            elif file.lower().endswith('.pdf'):
+                res.append({
+                    'user': path,
+                    'file_path': os.path.join(path, file),
+                    'file_type': 'pdf'
                 })
     
     logger.info(f"Всего найдено подач: {len(res)}")
@@ -888,16 +947,17 @@ async def generate_final_summary(root_dir: str):
         if path == root_dir:
             continue
 
-        # Ищем result.txt файлы
-        result_file = os.path.join(path, 'result.txt')
-        if os.path.exists(result_file):
-            try:
-                async with aiofiles.open(result_file, 'r', encoding='utf-8') as f:
-                    content = await f.read()
-
-                # Пытаемся парсить как JSON
-                ai_details_value = "Проверка не выполнялась"
+        # Собираем все per-file результаты
+        candidates = []
+        results_dir = os.path.join(path, 'results')
+        if os.path.isdir(results_dir):
+            for entry in os.listdir(results_dir):
+                if not entry.lower().endswith('.json'):
+                    continue
+                result_file = os.path.join(results_dir, entry)
                 try:
+                    async with aiofiles.open(result_file, 'r', encoding='utf-8') as f:
+                        content = await f.read()
                     data = json.loads(content)
                     student_name = data.get('student', os.path.basename(path))
                     result = data.get('result', 'не определено')
@@ -983,54 +1043,118 @@ async def generate_final_summary(root_dir: str):
                 except Exception:
                     mtime = 0.0
 
-                # Ключ дедупликации
-                key = student_id if student_id else normalized_student
+                    # Ключ дедупликации
+                    key = student_id if student_id else normalized_student
 
-                # Сохраняем запись с техническими полями
+                    # Сохраняем запись с техническими полями (кандидат)
+                    record = {
+                        'Студент': raw_student,
+                        'Результат': result,
+                        'AI-детекция': ai_status,
+                        'AI-детали': ai_details_value,
+                        'Комментарий': comment,
+                        'Путь к файлу': result_file,
+                        '__student_id__': student_id,
+                        '__normalized_student__': normalized_student,
+                        '__parsed_date__': parsed_date,
+                        '__mtime__': mtime,
+                    }
+                    candidates.append((key, record))
+                except Exception as e:
+                    logger.error(f"Ошибка при чтении {result_file}: {e}")
+
+        # Также учитываем legacy result.txt (если он был ранее сохранён логикой до многодокового режима)
+        legacy_result = os.path.join(path, 'result.txt')
+        if os.path.exists(legacy_result):
+            try:
+                async with aiofiles.open(legacy_result, 'r', encoding='utf-8') as f:
+                    content = await f.read()
+                data = json.loads(content)
+                raw_student = data.get('student', os.path.basename(path))
+                result = data.get('result', 'не определено')
+                comment = data.get('comment', 'нет комментария')
+                date_str = data.get('date')
+                ai_status = data.get('ai_detection', {}).get('ai_detected', 'неизвестно') if isinstance(data.get('ai_detection'), dict) else 'неизвестно'
+
+                folder_name = os.path.basename(path)
+                # Поиск ID студента
+                student_id = None
+                m = re.match(r'^(.+?)_(\d+)_assignsubmission_(\w+)$', raw_student)
+                if m:
+                    student_id = m.group(2)
+                if not student_id:
+                    m = re.match(r'^(.+?)_(\d+)_assignsubmission_(\w+)$', folder_name)
+                    if m:
+                        student_id = m.group(2)
+
+                try:
+                    import unicodedata
+                    normalized_student = unicodedata.normalize('NFC', str(raw_student).strip()).casefold()
+                except Exception:
+                    normalized_student = str(raw_student).strip().lower()
+
+                from datetime import datetime
+                parsed_date = None
+                if date_str:
+                    try:
+                        parsed_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        parsed_date = None
+                try:
+                    mtime = os.path.getmtime(legacy_result)
+                except Exception:
+                    mtime = 0.0
+
+                key = student_id if student_id else normalized_student
                 record = {
                     'Студент': raw_student,
                     'Результат': result,
                     'AI-детекция': ai_status,
-                    'AI-детали': ai_details_value,
+                    'AI-детали': 'legacy result.txt',
                     'Комментарий': comment,
-                    'Путь к файлу': result_file,
+                    'Путь к файлу': legacy_result,
                     '__student_id__': student_id,
                     '__normalized_student__': normalized_student,
                     '__parsed_date__': parsed_date,
                     '__mtime__': mtime,
                 }
-
-                # Выбор лучшей записи по приоритетам:
-                # 1) зачтено предпочитается незачтено
-                # 2) более поздняя дата (date, иначе mtime)
-                # 3) при равенстве дат — более длинный комментарий
-                def record_priority(rec):
-                    is_pass = 1 if str(rec.get('Результат', '')).strip().lower() == 'зачтено' else 0
-                    dt = rec.get('__parsed_date__')
-                    ts = dt.timestamp() if dt else rec.get('__mtime__', 0.0)
-                    comment_len = len(str(rec.get('Комментарий', '')))
-                    return (is_pass, ts, comment_len)
-
-                best = dedup_records.get(key)
-                if best is None or record_priority(record) > record_priority(best):
-                    dedup_records[key] = record
-
+                candidates.append((key, record))
             except Exception as e:
-                logger.error(f"Ошибка при чтении {result_file}: {e}")
-                # В ошибочных случаях всё равно добавим запись без дедупликации под уникальным ключом
-                error_key = f"__error__::{os.path.basename(path)}::{time.time()}"
-                dedup_records[error_key] = {
-                    'Студент': os.path.basename(path),
-                    'Результат': 'ошибка чтения',
-                    'AI-детекция': 'ошибка',
-                    'AI-детали': 'Не удалось сформировать комментарий',
-                    'Комментарий': str(e),
-                    'Путь к файлу': result_file,
-                    '__student_id__': None,
-                    '__normalized_student__': os.path.basename(path).lower(),
-                    '__parsed_date__': None,
-                    '__mtime__': 0.0,
+                logger.error(f"Ошибка при чтении legacy result.txt: {e}")
+
+        # Если нет кандидатов — переход к следующей папке
+        if not candidates:
+            continue
+
+        # Выбор лучшей записи по ключу студента
+        def record_priority(rec):
+            is_pass = 1 if str(rec.get('Результат', '')).strip().lower() == 'зачтено' else 0
+            dt = rec.get('__parsed_date__')
+            ts = dt.timestamp() if dt else rec.get('__mtime__', 0.0)
+            comment_len = len(str(rec.get('Комментарий', '')))
+            return (is_pass, ts, comment_len)
+
+        for key, record in candidates:
+            best = dedup_records.get(key)
+            if best is None or record_priority(record) > record_priority(best):
+                dedup_records[key] = record
+
+        # Записываем агрегированный лучший результат обратно в result.txt
+        for key, record in dedup_records.items():
+            if record.get('Путь к файлу', '').startswith(path):
+                result_file_path = os.path.join(path, 'result.txt')
+                aggregate = {
+                    "student": record.get('Студент'),
+                    "result": record.get('Результат'),
+                    "comment": record.get('Комментарий'),
+                    "date": time.strftime('%Y-%m-%d %H:%M:%S'),
+                    "ai_detection": None,
                 }
+                try:
+                    async with aiofiles.open(result_file_path, 'w', encoding='utf-8') as f:
+                        await f.write(json.dumps(aggregate, ensure_ascii=False, indent=2))
+                except Exception as e:
+                    logger.error(f"Не удалось сохранить агрегированный result.txt: {e}")
 
     # Финализация: формируем список записей и оставляем только 6 колонок
     final_records = list(dedup_records.values())
