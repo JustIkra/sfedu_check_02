@@ -1043,25 +1043,23 @@ async def generate_final_summary(root_dir: str):
                 except Exception:
                     mtime = 0.0
 
-                    # Ключ дедупликации
-                    key = student_id if student_id else normalized_student
+                # Ключ дедупликации
+                key = student_id if student_id else normalized_student
 
-                    # Сохраняем запись с техническими полями (кандидат)
-                    record = {
-                        'Студент': raw_student,
-                        'Результат': result,
-                        'AI-детекция': ai_status,
-                        'AI-детали': ai_details_value,
-                        'Комментарий': comment,
-                        'Путь к файлу': result_file,
-                        '__student_id__': student_id,
-                        '__normalized_student__': normalized_student,
-                        '__parsed_date__': parsed_date,
-                        '__mtime__': mtime,
-                    }
-                    candidates.append((key, record))
-                except Exception as e:
-                    logger.error(f"Ошибка при чтении {result_file}: {e}")
+                # Сохраняем запись с техническими полями (кандидат)
+                record = {
+                    'Студент': raw_student,
+                    'Результат': result,
+                    'AI-детекция': ai_status,
+                    'AI-детали': ai_details_value,
+                    'Комментарий': comment,
+                    'Путь к файлу': result_file,
+                    '__student_id__': student_id,
+                    '__normalized_student__': normalized_student,
+                    '__parsed_date__': parsed_date,
+                    '__mtime__': mtime,
+                }
+                candidates.append((key, record))
 
         # Также учитываем legacy result.txt (если он был ранее сохранён логикой до многодокового режима)
         legacy_result = os.path.join(path, 'result.txt')
