@@ -20,7 +20,7 @@ async def main():
 
     await generate_final_summary(test_dir)
 
-    summary_path = Path(test_dir) / f"Итоговая_ведомость_{Path(test_dir).name}.xlsx"
+    summary_path = Path(test_dir) / "Итоговая_ведомость.xlsx"
     if summary_path.exists():
         print(f"✅ Ведомость создана: {summary_path}")
 

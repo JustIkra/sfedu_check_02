@@ -1159,7 +1159,7 @@ async def generate_final_summary(root_dir: str):
     final_records.sort(key=lambda row: str(row.get('Студент', '')).casefold())
     columns = ['Студент', 'Результат', 'AI-детекция', 'AI-детали', 'Комментарий', 'Путь к файлу']
     df = pd.DataFrame([{k: rec.get(k) for k in columns} for rec in final_records], columns=columns)
-    summary_path = os.path.join(root_dir, f'Итоговая_ведомость_{os.path.basename(root_dir)}.xlsx')
+    summary_path = os.path.join(root_dir, 'Итоговая_ведомость.xlsx')
     df.to_excel(summary_path, index=False)
     
     # Форматирование Excel файла
